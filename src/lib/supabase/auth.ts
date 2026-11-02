@@ -3,6 +3,7 @@
 import type { Session } from "@supabase/supabase-js";
 import { appStore, localAppStore } from "@/lib/store/app-store";
 import { SupabaseAppStore } from "@/lib/store/supabase-store";
+import { removePushSubscription } from "@/lib/push-subscription";
 import { getSupabase, isSupabaseConfigured } from "./client";
 
 export type AuthState =
@@ -71,6 +72,8 @@ export async function signIn(email: string, password: string): Promise<string | 
 
 export async function signOut(): Promise<void> {
   remoteStore?.clearCache();
+  // ログアウトした端末に通知が届き続けないよう、宛先を消してからログアウトする
+  await removePushSubscription(getSupabase()).catch((e) => console.error("通知の宛先の削除に失敗しました", e));
   await getSupabase().auth.signOut();
 }
 

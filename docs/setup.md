@@ -60,6 +60,57 @@ http://localhost:3000 を開くとログイン画面が出る。ブラウザ内�
    - iPhone: Safari の共有ボタン → **ホーム画面に追加**
    - Android: Chrome のメニュー → **アプリをインストール**（または **ホーム画面に追加**）
 3. ホーム画面のアイコンから開き、「通知をオンにする」を押す（iPhone は iOS 16.4 以降）
+4. アプリを閉じていても通知を受け取るには、7 の設定も行う
+
+## 7. アプリを閉じていても通知する（Web Push）
+
+予定時間に達したら、アプリを閉じていてもサーバーから通知を送る設定です。Supabase が1分ごとにアプリの API を呼び、API が通知を送ります（最大1分ほど遅れることがあります）。
+
+### 7-1. DB に通知用のテーブルを追加する
+Supabase の **SQL Editor** で `supabase/migrations/20261103000000_web_push.sql` の中身を貼り付けて実行する。
+
+### 7-2. 鍵と合言葉を作る
+手元のリポジトリのフォルダ（`package.json` があるフォルダ）で:
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+`Public Key` と `Private Key` が表示されるので控える。続けて、合言葉（CRON_SECRET）を作る:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+**Private Key と合言葉は秘密の値です。** 人に見せたり、GitHub に上げたりしないでください。
+
+### 7-3. Vercel に環境変数を追加して、再デプロイする
+Vercel のプロジェクト → **Settings** → **Environment Variables** に追加する。
+
+| Key | Value |
+|---|---|
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | 7-2 の Public Key |
+| `VAPID_PRIVATE_KEY` | 7-2 の Private Key |
+| `VAPID_SUBJECT` | `mailto:自分のメールアドレス` |
+| `SUPABASE_SECRET_KEY` | Supabase の **API Keys** 画面の **Secret keys** の `sb_secret_...`（目のアイコンで表示してコピー） |
+| `CRON_SECRET` | 7-2 の合言葉 |
+
+`SUPABASE_SECRET_KEY` はサーバー側の通知処理だけが使います。**`NEXT_PUBLIC_` を付けないでください**（付けるとブラウザに載ってしまいます）。
+
+追加したら **Deployments** → 最新のデプロイの **⋯** → **Redeploy** で再デプロイする。
+
+### 7-4. 1分ごとの定期実行を登録する
+`supabase/setup/push-cron.sql` を開き、`<CRON_SECRET>` を 7-2 の合言葉に、`<アプリのURL>` を公開 URL（例 `what-did-you-do-xxxx.vercel.app`、`https://` は不要）に書き換えてから、**SQL Editor** で実行する。
+
+- `pg_cron` / `pg_net` が有効にできないと出たら、**Database** → **Extensions** で2つを有効にしてから、もう一度実行する
+- URL は本番の URL を使う（プレビュー用の URL は Vercel のログインが必要なため呼べない）
+
+### 7-5. 確かめる
+1. スマホでホーム画面のアイコンからアプリを開く（通知が許可されていれば、この端末が宛先として自動で登録される）
+2. Supabase の **Table Editor** で `push_subscriptions` に行が増えていることを確認する
+3. 予定時間「1分」で作業を開始し、アプリを閉じて1〜2分待つ
+
+届かないときは、`supabase/setup/push-cron.sql` の下にある確認用の SQL で、定期実行が動いているか・API が 200 を返しているかを確認する。API が `401` なら合言葉の不一致、`503` なら Vercel の環境変数の不足（応答の `missing` に足りない項目が出る）。
 
 ## DB のテスト（開発者向け）
 

@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { AppHeader } from "@/components/app-header";
 import { AuthGate } from "@/components/auth-gate";
 import { Nav } from "@/components/nav";
-import { DueNotifier, ServiceWorkerRegistrar } from "@/components/pwa";
+import { DueNotifier, PushSubscriptionSync, ServiceWorkerRegistrar } from "@/components/pwa";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -43,6 +43,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-4 p-4 pb-24">{children}</main>
           <Nav />
           <DueNotifier />
+          <PushSubscriptionSync />
         </AuthGate>
         <ServiceWorkerRegistrar />
       </body>
