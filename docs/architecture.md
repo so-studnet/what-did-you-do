@@ -78,3 +78,10 @@ docs/
 ```
 
 時間計算・日またぎの分割・タグの合算・超過判定といった **間違えやすいロジックは `lib/domain` に純粋関数として切り出し**、単体テストで固める。
+
+## PWA・通知
+- マニフェストは `src/app/manifest.ts`、アイコンは `public/icon-*.png` と `src/app/icon.svg` / `apple-icon.png`
+- Service Worker は `public/sw.js`。通知の表示と、通知タップ時に画面を前面に出す役割だけを持つ（オフライン用キャッシュはしない）
+- 予定時間の判定は `src/lib/domain/notification.ts`（純粋関数）。`DueNotifier`（`src/components/pwa.tsx`）が1秒ごとに確認し、通知済みのキーを localStorage（`wdyd:notified:v1`）に保存して重複を防ぐ
+- 通知の `tag` を作業ごとに固定しているので、複数のタブで開いていても通知は1つにまとまる
+- 将来、アプリを閉じていても通知するには Web Push（VAPID 鍵・購読情報の保存・予定時刻に送信するサーバー側の仕組み）が必要
