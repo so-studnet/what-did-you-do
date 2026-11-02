@@ -21,14 +21,16 @@
 
 ## 3. 接続情報を控える
 
-**Project Settings** → **API Keys**（または **Data API**）で次の2つを確認する。
+必要なのは次の2つです。
 
-| 項目 | 環境変数 |
-|---|---|
-| Project URL（`https://xxxx.supabase.co`） | `NEXT_PUBLIC_SUPABASE_URL` |
-| Publishable key（`sb_publishable_...`）。古いプロジェクトでは anon key | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
+| 環境変数 | 値 | 確認する場所 |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://<プロジェクトID>.supabase.co` | ブラウザのアドレスバー `supabase.com/dashboard/project/<プロジェクトID>/...` の `<プロジェクトID>` の部分から作れる。画面上部の緑の **Connect** ボタンでも確認できる |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `sb_publishable_...` | **Project Settings**（左下の歯車）→ **API Keys** → **Publishable key** の行のコピーボタン。古いプロジェクトでは **Legacy anon, service_role API keys** タブの anon key でもよい |
 
-この2つはブラウザに載る公開用の値です。データは RLS で守られているので、知られても他人は読み書きできません。**secret key / service_role key は絶対にアプリに設定しないでください。**
+この2つはブラウザに載る公開用の値です。データは RLS で守られているので、知られても他人は読み書きできません。
+
+**同じ画面の下にある Secret keys（`sb_secret_...`）や service_role key は、RLS を無視して何でもできる鍵です。アプリに設定したり、人に見せたりしないでください。**
 
 ## 4. 手元で動かす
 
