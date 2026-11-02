@@ -121,3 +121,97 @@ function isActivity(v: unknown): v is Activity {
     (a.plannedMin === null || typeof a.plannedMin === "number")
   );
 }
+
+/** 編集・手動追加フォームの入力 */
+export type ActivityDraft = {
+  title: string;
+  startedAt: Date;
+  /** null = 実行中のまま */
+  endedAt: Date | null;
+  plannedMin: number | null;
+};
+
+export type DraftValidationResult =
+  | { ok: true; value: ActivityDraft }
+  | { ok: false; error: string };
+
+/**
+ * 編集・手動追加の入力を検証する。
+ * - requireEnd: 終了時刻を必須にする（終了済みの記録の編集、手動追加）
+ */
+export function validateDraft(
+  draft: ActivityDraft,
+  now: Date,
+  { requireEnd }: { requireEnd: boolean },
+): DraftValidationResult {
+  const base = validateStartInput({ title: draft.title, plannedMin: draft.plannedMin });
+  if (!base.ok) return base;
+  const { startedAt, endedAt } = draft;
+  if (Number.isNaN(startedAt.getTime())) return { ok: false, error: "開始時刻を入力してください" };
+  if (startedAt.getTime() > now.getTime()) {
+    return { ok: false, error: "開始時刻を未来にはできません" };
+  }
+  if (endedAt === null) {
+    if (requireEnd) return { ok: false, error: "終了時刻を入力してください" };
+  } else {
+    if (Number.isNaN(endedAt.getTime())) return { ok: false, error: "終了時刻を入力してください" };
+    if (endedAt.getTime() > now.getTime()) {
+      return { ok: false, error: "終了時刻を未来にはできません" };
+    }
+    if (endedAt.getTime() < startedAt.getTime()) {
+      return { ok: false, error: "終了時刻は開始時刻より後にしてください" };
+    }
+  }
+  return { ok: true, value: { ...draft, title: base.value.title } };
+}
+
+/** 既存の記録を更新した一覧を返す。終了済みの記録を実行中に戻すことはできない。 */
+export function updateActivity(
+  activities: readonly Activity[],
+  id: string,
+  draft: ActivityDraft,
+  now: Date,
+): Activity[] {
+  const target = activities.find((a) => a.id === id);
+  if (!target) throw new Error("記録が見つかりません");
+  const result = validateDraft(draft, now, { requireEnd: target.endedAt !== null });
+  if (!result.ok) throw new Error(result.error);
+  const v = result.value;
+  return activities.map((a) =>
+    a.id === id
+      ? {
+          ...a,
+          title: v.title,
+          startedAt: v.startedAt.toISOString(),
+          endedAt: v.endedAt === null ? null : v.endedAt.toISOString(),
+          plannedMin: v.plannedMin,
+        }
+      : a,
+  );
+}
+
+/** 記録し忘れた作業を後から追加した一覧を返す（終了時刻は必須）。 */
+export function addActivity(
+  activities: readonly Activity[],
+  draft: ActivityDraft,
+  now: Date,
+  id: string,
+): Activity[] {
+  const result = validateDraft(draft, now, { requireEnd: true });
+  if (!result.ok) throw new Error(result.error);
+  const v = result.value;
+  return [
+    ...activities,
+    {
+      id,
+      title: v.title,
+      startedAt: v.startedAt.toISOString(),
+      endedAt: v.endedAt!.toISOString(),
+      plannedMin: v.plannedMin,
+    },
+  ];
+}
+
+export function deleteActivity(activities: readonly Activity[], id: string): Activity[] {
+  return activities.filter((a) => a.id !== id);
+}

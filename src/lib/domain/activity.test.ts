@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   type Activity,
+  addActivity,
+  deleteActivity,
   endedOnSameDay,
   parseActivities,
   runningActivities,
   startActivity,
   stopActivity,
+  updateActivity,
+  validateDraft,
   validateStartInput,
 } from "./activity";
 
@@ -86,5 +90,76 @@ describe("parseActivities", () => {
   it("壊れた要素だけ捨てる", () => {
     const ok = { id: "a", title: "x", startedAt: "2026-11-02T09:00:00.000Z", endedAt: null, plannedMin: null };
     expect(parseActivities([ok, { id: 1 }, { ...ok, startedAt: "bad" }])).toEqual([ok]);
+  });
+});
+
+describe("validateDraft", () => {
+  const now = t("2026-11-02T12:00:00Z");
+  const base = {
+    title: " 会議 ",
+    startedAt: t("2026-11-02T09:00:00Z"),
+    endedAt: t("2026-11-02T10:00:00Z"),
+    plannedMin: null,
+  };
+  it("正しい入力はタイトルを正規化して通す", () => {
+    const r = validateDraft(base, now, { requireEnd: true });
+    expect(r).toEqual({ ok: true, value: { ...base, title: "会議" } });
+  });
+  it("終了が開始より前ならエラー", () => {
+    const r = validateDraft({ ...base, endedAt: t("2026-11-02T08:59:00Z") }, now, { requireEnd: true });
+    expect(r).toEqual({ ok: false, error: "終了時刻は開始時刻より後にしてください" });
+  });
+  it("開始と終了が同じ時刻はOK", () => {
+    expect(validateDraft({ ...base, endedAt: base.startedAt }, now, { requireEnd: true }).ok).toBe(true);
+  });
+  it("未来の開始・終了はエラー", () => {
+    expect(validateDraft({ ...base, startedAt: t("2026-11-02T12:01:00Z"), endedAt: null }, now, { requireEnd: false }).ok).toBe(false);
+    expect(validateDraft({ ...base, endedAt: t("2026-11-02T12:01:00Z") }, now, { requireEnd: true }).ok).toBe(false);
+  });
+  it("requireEnd のとき終了なしはエラー、そうでなければOK", () => {
+    expect(validateDraft({ ...base, endedAt: null }, now, { requireEnd: true }).ok).toBe(false);
+    expect(validateDraft({ ...base, endedAt: null }, now, { requireEnd: false }).ok).toBe(true);
+  });
+  it("不正な日時はエラー", () => {
+    expect(validateDraft({ ...base, startedAt: new Date(Number.NaN) }, now, { requireEnd: true }).ok).toBe(false);
+    expect(validateDraft({ ...base, endedAt: new Date(Number.NaN) }, now, { requireEnd: true }).ok).toBe(false);
+  });
+  it("タイトル・予定時間の検証も行う", () => {
+    expect(validateDraft({ ...base, title: "" }, now, { requireEnd: true }).ok).toBe(false);
+    expect(validateDraft({ ...base, plannedMin: 0 }, now, { requireEnd: true }).ok).toBe(false);
+  });
+});
+
+describe("updateActivity / addActivity / deleteActivity", () => {
+  const now = t("2026-11-02T12:00:00Z");
+  const running: Activity = { id: "r", title: "開発", startedAt: "2026-11-02T10:00:00.000Z", endedAt: null, plannedMin: null };
+  const ended: Activity = { id: "e", title: "読書", startedAt: "2026-11-02T08:00:00.000Z", endedAt: "2026-11-02T09:00:00.000Z", plannedMin: 30 };
+  const list = [running, ended];
+
+  it("実行中の記録の開始時刻を修正できる（実行中のまま）", () => {
+    const next = updateActivity(list, "r", { title: "開発", startedAt: t("2026-11-02T09:30:00Z"), endedAt: null, plannedMin: 60 }, now);
+    expect(next[0]).toEqual({ ...running, startedAt: "2026-11-02T09:30:00.000Z", plannedMin: 60 });
+    expect(next[1]).toBe(ended);
+  });
+  it("実行中の記録に終了時刻を入れると終了扱いになる", () => {
+    const next = updateActivity(list, "r", { title: "開発", startedAt: t("2026-11-02T10:00:00Z"), endedAt: t("2026-11-02T11:00:00Z"), plannedMin: null }, now);
+    expect(runningActivities(next)).toEqual([]);
+  });
+  it("終了済みの記録を実行中に戻すことはできない", () => {
+    expect(() => updateActivity(list, "e", { title: "読書", startedAt: t("2026-11-02T08:00:00Z"), endedAt: null, plannedMin: 30 }, now)).toThrow();
+  });
+  it("存在しないIDはエラー", () => {
+    expect(() => updateActivity(list, "x", { title: "a", startedAt: now, endedAt: now, plannedMin: null }, now)).toThrow();
+  });
+  it("後から記録を追加できる", () => {
+    const next = addActivity(list, { title: "散歩", startedAt: t("2026-11-01T18:00:00Z"), endedAt: t("2026-11-01T18:30:00Z"), plannedMin: null }, now, "n");
+    expect(next).toHaveLength(3);
+    expect(next[2]).toEqual({ id: "n", title: "散歩", startedAt: "2026-11-01T18:00:00.000Z", endedAt: "2026-11-01T18:30:00.000Z", plannedMin: null });
+  });
+  it("終了時刻なしでは追加できない", () => {
+    expect(() => addActivity(list, { title: "散歩", startedAt: t("2026-11-01T18:00:00Z"), endedAt: null, plannedMin: null }, now, "n")).toThrow();
+  });
+  it("削除できる", () => {
+    expect(deleteActivity(list, "e")).toEqual([running]);
   });
 });

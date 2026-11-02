@@ -1,17 +1,33 @@
 "use client";
 
+import { useState } from "react";
 import { endedOnSameDay, runningActivities } from "@/lib/domain/activity";
+import { addDays, startOfLocalDay, truncateToMinute } from "@/lib/domain/datetime-local";
 import { useActivities } from "@/lib/hooks/use-activities";
 import { useNow } from "@/lib/hooks/use-now";
+import { formatDay } from "@/lib/format";
+import { EditDialog, type EditTarget } from "./edit-dialog";
 import { EndedList } from "./ended-list";
 import { RunningCard } from "./running-card";
 import { StartForm } from "./start-form";
 
 export function Dashboard() {
-  const { activities, start, stop } = useActivities();
+  const { activities, start, stop, update, add, remove } = useActivities();
   const now = useNow();
+  // 0 = 今日、-1 = 昨日 …（日付をまたいでも「今日」が追従するように日数の差で持つ）
+  const [dayOffset, setDayOffset] = useState(0);
+  const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
+
   const running = runningActivities(activities);
-  const endedToday = now ? endedOnSameDay(activities, now) : [];
+  const day = now ? addDays(startOfLocalDay(now), dayOffset) : null;
+  const endedOnDay = day ? endedOnSameDay(activities, day) : [];
+
+  const openAdd = () => {
+    if (!now || !day) return;
+    // 今日なら「直前の30分」、過去の日なら「その日の12:00〜12:30」を初期値にする
+    const end = dayOffset === 0 ? truncateToMinute(now) : new Date(day.getFullYear(), day.getMonth(), day.getDate(), 12, 30);
+    setEditTarget({ kind: "add", startedAt: new Date(end.getTime() - 30 * 60_000), endedAt: end });
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -26,18 +42,72 @@ export function Dashboard() {
         ) : (
           <ul className="flex flex-col gap-3">
             {running.map((a) => (
-              <RunningCard key={a.id} activity={a} now={now} onStop={stop} />
+              <RunningCard
+                key={a.id}
+                activity={a}
+                now={now}
+                onStop={stop}
+                onEdit={(activity) => setEditTarget({ kind: "edit", activity })}
+              />
             ))}
           </ul>
         )}
       </section>
 
       <section aria-labelledby="ended-heading" className="flex flex-col gap-2">
-        <h2 id="ended-heading" className="text-sm font-bold text-zinc-500">
-          今日終了した作業
-        </h2>
-        <EndedList activities={endedToday} />
+        <div className="flex items-center justify-between gap-2">
+          <h2 id="ended-heading" className="text-sm font-bold text-zinc-500">
+            終了した作業
+          </h2>
+          <div className="flex items-center gap-1 text-sm">
+            <button
+              type="button"
+              onClick={() => setDayOffset((o) => o - 1)}
+              aria-label="前の日"
+              className="rounded-lg px-2 py-1 active:bg-zinc-100 dark:active:bg-zinc-800"
+            >
+              ◀
+            </button>
+            <span className="min-w-20 text-center font-bold" aria-live="polite">
+              {day ? (dayOffset === 0 ? `今日 ${formatDay(day)}` : formatDay(day)) : ""}
+            </span>
+            <button
+              type="button"
+              onClick={() => setDayOffset((o) => Math.min(0, o + 1))}
+              disabled={dayOffset === 0}
+              aria-label="次の日"
+              className="rounded-lg px-2 py-1 active:bg-zinc-100 disabled:opacity-30 dark:active:bg-zinc-800"
+            >
+              ▶
+            </button>
+          </div>
+        </div>
+        <EndedList
+          activities={endedOnDay}
+          onEdit={(activity) => setEditTarget({ kind: "edit", activity })}
+        />
+        <button
+          type="button"
+          onClick={openAdd}
+          className="self-start rounded-xl border border-dashed border-zinc-400 px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400"
+        >
+          ＋ 記録を追加
+        </button>
       </section>
+
+      {editTarget && (
+        <EditDialog
+          key={editTarget.kind === "edit" ? editTarget.activity.id : "add"}
+          target={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSave={(draft) =>
+            editTarget.kind === "edit" ? update(editTarget.activity.id, draft) : add(draft)
+          }
+          onDelete={
+            editTarget.kind === "edit" ? () => remove(editTarget.activity.id) : undefined
+          }
+        />
+      )}
     </div>
   );
 }

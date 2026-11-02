@@ -1,7 +1,15 @@
 "use client";
 
 import { useCallback, useSyncExternalStore } from "react";
-import { type StartInput, startActivity, stopActivity } from "@/lib/domain/activity";
+import {
+  type ActivityDraft,
+  type StartInput,
+  addActivity,
+  deleteActivity,
+  startActivity,
+  stopActivity,
+  updateActivity,
+} from "@/lib/domain/activity";
 import { activityStore } from "@/lib/store/activity-store";
 import { newId } from "@/lib/id";
 
@@ -20,5 +28,17 @@ export function useActivities() {
     activityStore.update((prev) => stopActivity(prev, id, new Date()));
   }, []);
 
-  return { activities, start, stop };
+  const update = useCallback((id: string, draft: ActivityDraft) => {
+    activityStore.update((prev) => updateActivity(prev, id, draft, new Date()));
+  }, []);
+
+  const add = useCallback((draft: ActivityDraft) => {
+    activityStore.update((prev) => addActivity(prev, draft, new Date(), newId()));
+  }, []);
+
+  const remove = useCallback((id: string) => {
+    activityStore.update((prev) => deleteActivity(prev, id));
+  }, []);
+
+  return { activities, start, stop, update, add, remove };
 }

@@ -8,10 +8,12 @@ export function RunningCard({
   activity,
   now,
   onStop,
+  onEdit,
 }: {
   activity: Activity;
   now: Date | null;
   onStop: (id: string) => void;
+  onEdit: (activity: Activity) => void;
 }) {
   const timed = toTimed(activity);
   const elapsed = now ? elapsedMs(timed, now) : 0;
@@ -36,14 +38,24 @@ export function RunningCard({
             {activity.plannedMin !== null && ` ・ 予定 ${formatMinutes(activity.plannedMin)}`}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => onStop(activity.id)}
-          aria-label={`「${activity.title}」を終了`}
-          className="shrink-0 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-bold text-white active:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
-        >
-          終了
-        </button>
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            onClick={() => onEdit(activity)}
+            aria-label={`「${activity.title}」を編集`}
+            className="rounded-xl border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
+          >
+            編集
+          </button>
+          <button
+            type="button"
+            onClick={() => onStop(activity.id)}
+            aria-label={`「${activity.title}」を終了`}
+            className="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-bold text-white active:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+          >
+            終了
+          </button>
+        </div>
       </div>
 
       <div className="flex items-baseline justify-between gap-2">

@@ -11,3 +11,10 @@ export function formatMinutes(min: number): string {
   if (h === 0) return `${m}分`;
   return m === 0 ? `${h}時間` : `${h}時間${m}分`;
 }
+
+const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+
+/** "11/2(月)" */
+export function formatDay(d: Date): string {
+  return `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAYS[d.getDay()]})`;
+}
