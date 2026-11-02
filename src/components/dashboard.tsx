@@ -10,6 +10,7 @@ import { formatDay } from "@/lib/format";
 import { PeriodNav } from "./period-nav";
 import { EditDialog, type EditTarget } from "./edit-dialog";
 import { EndedList } from "./ended-list";
+import { ImportBanner } from "./import-banner";
 import { NotificationBanner } from "./notification-banner";
 import { RunningCard } from "./running-card";
 import { StartForm } from "./start-form";
@@ -36,6 +37,7 @@ export function Dashboard() {
 
   return (
     <div className="flex flex-col gap-6">
+      <ImportBanner />
       <NotificationBanner />
 
       <TemplateBar

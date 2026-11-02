@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { AppHeader } from "@/components/app-header";
+import { AuthGate } from "@/components/auth-gate";
 import { Nav } from "@/components/nav";
 import { DueNotifier, ServiceWorkerRegistrar } from "@/components/pwa";
 import "./globals.css";
@@ -36,13 +38,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <header className="border-b border-zinc-200 pt-[env(safe-area-inset-top)] dark:border-zinc-800">
-          <p className="mx-auto max-w-xl px-4 py-2.5 font-bold">What did you do</p>
-        </header>
-        <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-4 p-4 pb-24">{children}</main>
-        <Nav />
+        <AppHeader />
+        <AuthGate>
+          <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-4 p-4 pb-24">{children}</main>
+          <Nav />
+          <DueNotifier />
+        </AuthGate>
         <ServiceWorkerRegistrar />
-        <DueNotifier />
       </body>
     </html>
   );

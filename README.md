@@ -5,6 +5,7 @@
 - 要件: [docs/requirements.md](docs/requirements.md)
 - 技術構成・設計: [docs/architecture.md](docs/architecture.md)
 - ロードマップ: [docs/roadmap.md](docs/roadmap.md)
+- Supabase と Vercel のセットアップ: [docs/setup.md](docs/setup.md)
 
 ## 開発
 
@@ -14,4 +15,7 @@ npm run dev        # http://localhost:3000
 npm test           # 単体テスト (Vitest)
 npm run lint
 npm run typecheck
+npm run test:db    # DB のスキーマと RLS のテスト（PostgreSQL が必要）
 ```
+
+Supabase の接続情報（`.env.local`）を設定しなければ、ブラウザ内だけに保存して動きます。

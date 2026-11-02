@@ -3,14 +3,18 @@ import { parseActivities } from "@/lib/domain/activity";
 
 /**
  * アプリデータの保存先。
- * 今はブラウザの localStorage、M2 で Supabase 実装に差し替える。
+ * ブラウザ内（localStorage）と Supabase（supabase-store.ts）の2つの実装がある。
  */
 export interface AppStore {
   subscribe(onChange: () => void): () => void;
   getSnapshot(): AppData;
   getServerSnapshot(): AppData;
   update(fn: (prev: AppData) => AppData): void;
+  /** 同期の状態。ブラウザ内保存なら "local" */
+  getStatus?(): SyncStatus;
 }
+
+export type SyncStatus = "local" | "loading" | "synced" | "saving" | "error" | "offline";
 
 export const STORAGE_KEY = "wdyd:data:v2";
 /** M1〜M3 の保存形式（作業記録の配列のみ） */
@@ -74,14 +78,51 @@ export function createLocalStorageAppStore(storage: Storage = window.localStorag
   };
 }
 
-export const appStore: AppStore =
-  typeof window === "undefined"
-    ? {
-        subscribe: () => () => {},
-        getSnapshot: () => EMPTY_APP_DATA,
-        getServerSnapshot: () => EMPTY_APP_DATA,
-        update: () => {
-          throw new Error("サーバ上では更新できません");
-        },
-      }
-    : createLocalStorageAppStore();
+const serverStore: AppStore = {
+  subscribe: () => () => {},
+  getSnapshot: () => EMPTY_APP_DATA,
+  getServerSnapshot: () => EMPTY_APP_DATA,
+  update: () => {
+    throw new Error("サーバ上では更新できません");
+  },
+};
+
+/**
+ * 保存先を切り替えられるストア。画面はこれだけを使う。
+ * 既定はブラウザ内保存。ログインすると Supabase のストアに切り替わる。
+ */
+export class SwitchableAppStore implements AppStore {
+  private listeners = new Set<() => void>();
+  private unsubscribe: () => void;
+
+  constructor(private backend: AppStore) {
+    this.unsubscribe = backend.subscribe(this.notify);
+  }
+
+  private notify = () => this.listeners.forEach((l) => l());
+
+  setBackend(backend: AppStore): void {
+    if (backend === this.backend) return;
+    this.unsubscribe();
+    this.backend = backend;
+    this.unsubscribe = backend.subscribe(this.notify);
+    this.notify();
+  }
+
+  subscribe = (onChange: () => void) => {
+    this.listeners.add(onChange);
+    return () => {
+      this.listeners.delete(onChange);
+    };
+  };
+  getSnapshot = () => this.backend.getSnapshot();
+  getServerSnapshot = () => this.backend.getServerSnapshot();
+  getStatus = (): SyncStatus => this.backend.getStatus?.() ?? "local";
+  update = (fn: (prev: AppData) => AppData) => this.backend.update(fn);
+}
+
+/** このブラウザ内に保存されているデータ（ログイン前の保存先・取り込み元） */
+export const localAppStore: AppStore =
+  typeof window === "undefined" ? serverStore : createLocalStorageAppStore();
+
+export const appStore = new SwitchableAppStore(localAppStore);
