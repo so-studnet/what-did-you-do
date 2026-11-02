@@ -7,6 +7,7 @@ import { templateToStartInput } from "@/lib/domain/template";
 import { useAppData } from "@/lib/hooks/use-app-data";
 import { useNow } from "@/lib/hooks/use-now";
 import { formatDay } from "@/lib/format";
+import { PeriodNav } from "./period-nav";
 import { EditDialog, type EditTarget } from "./edit-dialog";
 import { EndedList } from "./ended-list";
 import { RunningCard } from "./running-card";
@@ -69,28 +70,13 @@ export function Dashboard() {
           <h2 id="ended-heading" className="text-sm font-bold text-zinc-500">
             終了した作業
           </h2>
-          <div className="flex items-center gap-1 text-sm">
-            <button
-              type="button"
-              onClick={() => setDayOffset((o) => o - 1)}
-              aria-label="前の日"
-              className="rounded-lg px-2 py-1 active:bg-zinc-100 dark:active:bg-zinc-800"
-            >
-              ◀
-            </button>
-            <span className="min-w-20 text-center font-bold" aria-live="polite">
-              {day ? (dayOffset === 0 ? `今日 ${formatDay(day)}` : formatDay(day)) : ""}
-            </span>
-            <button
-              type="button"
-              onClick={() => setDayOffset((o) => Math.min(0, o + 1))}
-              disabled={dayOffset === 0}
-              aria-label="次の日"
-              className="rounded-lg px-2 py-1 active:bg-zinc-100 disabled:opacity-30 dark:active:bg-zinc-800"
-            >
-              ▶
-            </button>
-          </div>
+          <PeriodNav
+            label={day ? (dayOffset === 0 ? `今日 ${formatDay(day)}` : formatDay(day)) : ""}
+            offset={dayOffset}
+            onChange={setDayOffset}
+            prevLabel="前の日"
+            nextLabel="次の日"
+          />
         </div>
         <EndedList
           activities={endedOnDay}

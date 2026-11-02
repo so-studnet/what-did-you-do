@@ -1,6 +1,6 @@
 import { type Tag, formatTagPath } from "@/lib/domain/tag";
 
-/** タグをパス付きの小さなチップで表示する */
+/** タグをパス付きの小さなチップで表示する（文字は本文色、色は丸で示す） */
 export function TagChips({
   tags,
   tagIds,
@@ -21,9 +21,9 @@ export function TagChips({
       {items.map(({ tag, path }) => (
         <li
           key={tag.id}
-          className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs"
-          style={{ borderColor: tag.color, color: tag.color }}
+          className="flex items-center gap-1 rounded-full border border-zinc-300 px-2 py-0.5 text-xs text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
         >
+          <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
           <span>{path}</span>
           {onRemove && (
             <button

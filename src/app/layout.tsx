@@ -25,8 +25,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <header className="border-b border-zinc-200 dark:border-zinc-800">
+          <p className="mx-auto max-w-xl px-4 py-2.5 font-bold">What did you do</p>
+        </header>
+        <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-4 p-4 pb-24">{children}</main>
         <Nav />
-        <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-4 p-4">{children}</main>
       </body>
     </html>
   );

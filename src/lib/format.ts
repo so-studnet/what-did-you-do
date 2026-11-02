@@ -18,3 +18,13 @@ const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 export function formatDay(d: Date): string {
   return `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAYS[d.getDay()]})`;
 }
+
+/** ミリ秒を "2時間30分" / "45分" のように表す（分未満は切り捨て） */
+export function formatHm(ms: number): string {
+  return formatMinutes(Math.floor(Math.max(0, ms) / 60_000));
+}
+
+/** "2026年11月" */
+export function formatMonth(d: Date): string {
+  return `${d.getFullYear()}年${d.getMonth() + 1}月`;
+}
