@@ -3,16 +3,19 @@
 import { useState } from "react";
 import { endedOnSameDay, runningActivities } from "@/lib/domain/activity";
 import { addDays, startOfLocalDay, truncateToMinute } from "@/lib/domain/datetime-local";
-import { useActivities } from "@/lib/hooks/use-activities";
+import { templateToStartInput } from "@/lib/domain/template";
+import { useAppData } from "@/lib/hooks/use-app-data";
 import { useNow } from "@/lib/hooks/use-now";
 import { formatDay } from "@/lib/format";
 import { EditDialog, type EditTarget } from "./edit-dialog";
 import { EndedList } from "./ended-list";
 import { RunningCard } from "./running-card";
 import { StartForm } from "./start-form";
+import { TemplateBar } from "./template-bar";
 
 export function Dashboard() {
-  const { activities, start, stop, update, add, remove } = useActivities();
+  const { data, actions } = useAppData();
+  const { activities, tags, templates } = data;
   const now = useNow();
   // 0 = 今日、-1 = 昨日 …（日付をまたいでも「今日」が追従するように日数の差で持つ）
   const [dayOffset, setDayOffset] = useState(0);
@@ -31,7 +34,13 @@ export function Dashboard() {
 
   return (
     <div className="flex flex-col gap-6">
-      <StartForm onStart={start} />
+      <TemplateBar
+        templates={templates}
+        tags={tags}
+        onStart={(t) => actions.start(templateToStartInput(t))}
+      />
+
+      <StartForm tags={tags} onStart={actions.start} />
 
       <section aria-labelledby="running-heading" className="flex flex-col gap-3">
         <h2 id="running-heading" className="text-sm font-bold text-zinc-500">
@@ -45,8 +54,9 @@ export function Dashboard() {
               <RunningCard
                 key={a.id}
                 activity={a}
+                tags={tags}
                 now={now}
-                onStop={stop}
+                onStop={actions.stop}
                 onEdit={(activity) => setEditTarget({ kind: "edit", activity })}
               />
             ))}
@@ -84,6 +94,7 @@ export function Dashboard() {
         </div>
         <EndedList
           activities={endedOnDay}
+          tags={tags}
           onEdit={(activity) => setEditTarget({ kind: "edit", activity })}
         />
         <button
@@ -99,13 +110,17 @@ export function Dashboard() {
         <EditDialog
           key={editTarget.kind === "edit" ? editTarget.activity.id : "add"}
           target={editTarget}
+          tags={tags}
           onClose={() => setEditTarget(null)}
           onSave={(draft) =>
-            editTarget.kind === "edit" ? update(editTarget.activity.id, draft) : add(draft)
+            editTarget.kind === "edit"
+              ? actions.updateActivity(editTarget.activity.id, draft)
+              : actions.addActivity(draft)
           }
           onDelete={
-            editTarget.kind === "edit" ? () => remove(editTarget.activity.id) : undefined
+            editTarget.kind === "edit" ? () => actions.deleteActivity(editTarget.activity.id) : undefined
           }
+          onSaveAsTemplate={editTarget.kind === "edit" ? actions.createTemplate : undefined}
         />
       )}
     </div>

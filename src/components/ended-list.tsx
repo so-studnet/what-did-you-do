@@ -1,12 +1,16 @@
 import { type Activity, toTimed } from "@/lib/domain/activity";
+import type { Tag } from "@/lib/domain/tag";
 import { elapsedMs, formatDuration, overrunMs } from "@/lib/domain/time";
 import { formatClock } from "@/lib/format";
+import { TagChips } from "./tag-chips";
 
 export function EndedList({
   activities,
+  tags,
   onEdit,
 }: {
   activities: readonly Activity[];
+  tags: readonly Tag[];
   onEdit: (activity: Activity) => void;
 }) {
   if (activities.length === 0) {
@@ -32,6 +36,9 @@ export function EndedList({
                 <p className="text-xs text-zinc-500">
                   {formatClock(a.startedAt)} – {formatClock(a.endedAt!)}
                 </p>
+                <div className="mt-1">
+                  <TagChips tags={tags} tagIds={a.tagIds} />
+                </div>
               </div>
               <div className="shrink-0 text-right">
                 <p className="font-mono tabular-nums">{formatDuration(elapsed)}</p>

@@ -47,6 +47,8 @@ template_tags            テンプレート × タグ（多対多）
   tag_id       uuid FK
 ```
 
+M2 までは、上の内容を1つの JSON（`{ activities, tags, templates }`）としてブラウザの localStorage（キー `wdyd:data:v2`）に保存する。保存処理は `src/lib/store/app-store.ts` の `AppStore` インターフェースの裏に隠してあり、M2 で Supabase 実装に差し替える。M1〜M3 の形式（`wdyd:activities:v1`）は読み込み時に自動で移行する。
+
 すべてのテーブルに `user_id`（`auth.users.id`）を持たせ、Row Level Security で本人のデータだけを読み書きできるようにする。利用者は一人だけでも、多層防御としてRLSを入れておく。
 
 ### 設計のポイント

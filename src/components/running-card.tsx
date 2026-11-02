@@ -1,16 +1,20 @@
 "use client";
 
 import { type Activity, toTimed } from "@/lib/domain/activity";
+import type { Tag } from "@/lib/domain/tag";
 import { elapsedMs, formatDuration, overrunMs } from "@/lib/domain/time";
 import { formatClock, formatMinutes } from "@/lib/format";
+import { TagChips } from "./tag-chips";
 
 export function RunningCard({
   activity,
+  tags,
   now,
   onStop,
   onEdit,
 }: {
   activity: Activity;
+  tags: readonly Tag[];
   now: Date | null;
   onStop: (id: string) => void;
   onEdit: (activity: Activity) => void;
@@ -37,6 +41,9 @@ export function RunningCard({
             {formatClock(activity.startedAt)} 開始
             {activity.plannedMin !== null && ` ・ 予定 ${formatMinutes(activity.plannedMin)}`}
           </p>
+          <div className="mt-1">
+            <TagChips tags={tags} tagIds={activity.tagIds} />
+          </div>
         </div>
         <div className="flex shrink-0 gap-2">
           <button

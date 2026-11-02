@@ -9,11 +9,13 @@ export type Activity = {
   endedAt: string | null;
   /** null = 無制限 */
   plannedMin: number | null;
+  tagIds: string[];
 };
 
 export type StartInput = {
   title: string;
   plannedMin: number | null;
+  tagIds: string[];
 };
 
 export const MAX_TITLE_LENGTH = 100;
@@ -36,7 +38,7 @@ export function validateStartInput(input: StartInput): ValidationResult {
       return { ok: false, error: `予定時間は1〜${MAX_PLANNED_MIN}分の整数で指定してください` };
     }
   }
-  return { ok: true, value: { title, plannedMin } };
+  return { ok: true, value: { title, plannedMin, tagIds: [...new Set(input.tagIds)] } };
 }
 
 /** 新しい作業を開始した一覧を返す。既に実行中の作業はそのまま（並行実行）。 */
@@ -56,6 +58,7 @@ export function startActivity(
       startedAt: now.toISOString(),
       endedAt: null,
       plannedMin: result.value.plannedMin,
+      tagIds: result.value.tagIds,
     },
   ];
 }
@@ -102,13 +105,20 @@ export function toTimed(a: Activity): TimedActivity {
   };
 }
 
-/** 保存データを読み込む。壊れた要素は捨てる。 */
+/** 保存データを読み込む。壊れた要素は捨てる。tagIds がない古いデータは空のタグとして読む。 */
 export function parseActivities(raw: unknown): Activity[] {
   if (!Array.isArray(raw)) return [];
-  return raw.filter(isActivity);
+  return raw.filter(isActivityLike).map((a) => ({
+    id: a.id,
+    title: a.title,
+    startedAt: a.startedAt,
+    endedAt: a.endedAt,
+    plannedMin: a.plannedMin,
+    tagIds: Array.isArray(a.tagIds) ? a.tagIds.filter((x): x is string => typeof x === "string") : [],
+  }));
 }
 
-function isActivity(v: unknown): v is Activity {
+function isActivityLike(v: unknown): v is Omit<Activity, "tagIds"> & { tagIds?: unknown[] } {
   if (typeof v !== "object" || v === null) return false;
   const a = v as Record<string, unknown>;
   return (
@@ -129,6 +139,7 @@ export type ActivityDraft = {
   /** null = 実行中のまま */
   endedAt: Date | null;
   plannedMin: number | null;
+  tagIds: string[];
 };
 
 export type DraftValidationResult =
@@ -144,7 +155,7 @@ export function validateDraft(
   now: Date,
   { requireEnd }: { requireEnd: boolean },
 ): DraftValidationResult {
-  const base = validateStartInput({ title: draft.title, plannedMin: draft.plannedMin });
+  const base = validateStartInput(draft);
   if (!base.ok) return base;
   const { startedAt, endedAt } = draft;
   if (Number.isNaN(startedAt.getTime())) return { ok: false, error: "開始時刻を入力してください" };
@@ -162,7 +173,7 @@ export function validateDraft(
       return { ok: false, error: "終了時刻は開始時刻より後にしてください" };
     }
   }
-  return { ok: true, value: { ...draft, title: base.value.title } };
+  return { ok: true, value: { ...draft, title: base.value.title, tagIds: base.value.tagIds } };
 }
 
 /** 既存の記録を更新した一覧を返す。終了済みの記録を実行中に戻すことはできない。 */
@@ -185,6 +196,7 @@ export function updateActivity(
           startedAt: v.startedAt.toISOString(),
           endedAt: v.endedAt === null ? null : v.endedAt.toISOString(),
           plannedMin: v.plannedMin,
+          tagIds: v.tagIds,
         }
       : a,
   );
@@ -208,6 +220,7 @@ export function addActivity(
       startedAt: v.startedAt.toISOString(),
       endedAt: v.endedAt!.toISOString(),
       plannedMin: v.plannedMin,
+      tagIds: v.tagIds,
     },
   ];
 }

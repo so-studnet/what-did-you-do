@@ -2,6 +2,8 @@
 
 import { type FormEvent, useState } from "react";
 import { MAX_PLANNED_MIN, type StartInput, validateStartInput } from "@/lib/domain/activity";
+import type { Tag } from "@/lib/domain/tag";
+import { TagPicker } from "./tag-picker";
 
 const PRESETS: { label: string; min: number | null }[] = [
   { label: "なし", min: null },
@@ -11,22 +13,33 @@ const PRESETS: { label: string; min: number | null }[] = [
   { label: "2時間", min: 120 },
 ];
 
-export function StartForm({ onStart }: { onStart: (input: StartInput) => void }) {
+export function StartForm({
+  tags,
+  onStart,
+}: {
+  tags: readonly Tag[];
+  onStart: (input: StartInput) => void;
+}) {
   const [title, setTitle] = useState("");
   const [planned, setPlanned] = useState(""); // 空 = 無制限
+  const [tagIds, setTagIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // 開始のたびにタグ選択欄を作り直して閉じる
+  const [resetCount, setResetCount] = useState(0);
 
   const plannedMin = planned === "" ? null : Number(planned);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    const result = validateStartInput({ title, plannedMin });
+    const result = validateStartInput({ title, plannedMin, tagIds });
     if (!result.ok) {
       setError(result.error);
       return;
     }
     onStart(result.value);
     setTitle("");
+    setTagIds([]);
+    setResetCount((n) => n + 1);
     setError(null);
   };
 
@@ -85,6 +98,8 @@ export function StartForm({ onStart }: { onStart: (input: StartInput) => void })
           分
         </label>
       </fieldset>
+
+      <TagPicker key={resetCount} tags={tags} value={tagIds} onChange={setTagIds} />
 
       {error && (
         <p role="alert" className="text-sm text-red-600">

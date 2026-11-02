@@ -1,28 +1,38 @@
 "use client";
 
-import { type FormEvent, useEffect, useRef, useState } from "react";
-import { type Activity, type ActivityDraft, MAX_PLANNED_MIN, validateDraft } from "@/lib/domain/activity";
+import { type FormEvent, useState } from "react";
+import {
+  type Activity,
+  type ActivityDraft,
+  MAX_PLANNED_MIN,
+  type StartInput,
+  validateDraft,
+  validateStartInput,
+} from "@/lib/domain/activity";
 import { fromDateTimeLocal, toDateTimeLocal } from "@/lib/domain/datetime-local";
+import type { Tag } from "@/lib/domain/tag";
+import { DeleteButton, Modal, closeEnclosingDialog, inputClass } from "./modal";
+import { TagPicker } from "./tag-picker";
 
 export type EditTarget =
   | { kind: "edit"; activity: Activity }
   | { kind: "add"; startedAt: Date; endedAt: Date };
 
-const inputClass =
-  "w-full rounded-xl border border-zinc-300 bg-transparent px-3 py-2.5 text-base outline-none focus:border-blue-500 dark:border-zinc-700";
-
 export function EditDialog({
   target,
+  tags,
   onSave,
   onDelete,
+  onSaveAsTemplate,
   onClose,
 }: {
   target: EditTarget;
+  tags: readonly Tag[];
   onSave: (draft: ActivityDraft) => void;
   onDelete?: () => void;
+  onSaveAsTemplate?: (input: StartInput) => void;
   onClose: () => void;
 }) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const isEdit = target.kind === "edit";
   const isRunning = isEdit && target.activity.endedAt === null;
 
@@ -37,15 +47,12 @@ export function EditDialog({
   const [planned, setPlanned] = useState(
     isEdit && target.activity.plannedMin !== null ? String(target.activity.plannedMin) : "",
   );
+  const [tagIds, setTagIds] = useState<string[]>(isEdit ? target.activity.tagIds : []);
   const [error, setError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [templateSaved, setTemplateSaved] = useState(false);
 
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (dialog && !dialog.open) dialog.showModal();
-  }, []);
-
-  const submit = (e: FormEvent) => {
+  const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const original = isEdit ? target.activity : null;
     // 分単位の入力欄なので、変更していない時刻は元の秒単位の値を保つ
@@ -56,6 +63,7 @@ export function EditDialog({
       startedAt: keep(original?.startedAt ?? null, start),
       endedAt: end === "" ? null : keep(original?.endedAt ?? null, end),
       plannedMin: planned === "" ? null : Number(planned),
+      tagIds,
     };
     const result = validateDraft(draft, new Date(), { requireEnd: !isRunning });
     if (!result.ok) {
@@ -63,21 +71,12 @@ export function EditDialog({
       return;
     }
     onSave(result.value);
-    dialogRef.current?.close();
+    closeEnclosingDialog(e);
   };
 
   return (
-    <dialog
-      ref={dialogRef}
-      onClose={onClose}
-      aria-labelledby="edit-dialog-title"
-      className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl bg-white p-0 text-zinc-900 backdrop:bg-black/50 dark:bg-zinc-900 dark:text-zinc-100"
-    >
-      <form onSubmit={submit} className="flex flex-col gap-4 p-5">
-        <h2 id="edit-dialog-title" className="text-lg font-bold">
-          {isEdit ? "記録を編集" : "記録を追加"}
-        </h2>
-
+    <Modal title={isEdit ? "記録を編集" : "記録を追加"} onClose={onClose}>
+      <form onSubmit={submit} className="flex flex-col gap-4">
         <label className="flex flex-col gap-1 text-sm">
           作業内容
           <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} />
@@ -116,6 +115,35 @@ export function EditDialog({
           />
         </label>
 
+        <div className="flex flex-col gap-1 text-sm">
+          タグ
+          <TagPicker tags={tags} value={tagIds} onChange={setTagIds} />
+        </div>
+
+        {onSaveAsTemplate && (
+          <button
+            type="button"
+            disabled={templateSaved}
+            onClick={() => {
+              const r = validateStartInput({
+                title,
+                plannedMin: planned === "" ? null : Number(planned),
+                tagIds,
+              });
+              if (!r.ok) {
+                setError(r.error);
+                return;
+              }
+              onSaveAsTemplate(r.value);
+              setError(null);
+              setTemplateSaved(true);
+            }}
+            className="self-start text-sm text-blue-600 underline disabled:text-zinc-500 disabled:no-underline"
+          >
+            {templateSaved ? "テンプレートに保存しました" : "この内容をテンプレートにする"}
+          </button>
+        )}
+
         {error && (
           <p role="alert" className="text-sm text-red-600">
             {error}
@@ -124,31 +152,22 @@ export function EditDialog({
 
         <div className="flex items-center justify-between gap-2 pt-2">
           {onDelete ? (
-            <button
-              type="button"
-              onClick={() => {
+            <DeleteButton
+              confirming={confirmingDelete}
+              onClick={(e) => {
                 if (!confirmingDelete) {
                   setConfirmingDelete(true);
                   return;
                 }
                 onDelete();
-                dialogRef.current?.close();
+                closeEnclosingDialog(e);
               }}
-              className={`rounded-xl px-3 py-2 text-sm font-bold ${
-                confirmingDelete ? "bg-red-600 text-white" : "text-red-600"
-              }`}
-            >
-              {confirmingDelete ? "本当に削除する" : "削除"}
-            </button>
+            />
           ) : (
             <span />
           )}
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => dialogRef.current?.close()}
-              className="rounded-xl px-4 py-2 text-sm"
-            >
+            <button type="button" onClick={closeEnclosingDialog} className="rounded-xl px-4 py-2 text-sm">
               キャンセル
             </button>
             <button type="submit" className="rounded-xl bg-blue-600 px-5 py-2 text-sm font-bold text-white">
@@ -157,6 +176,6 @@ export function EditDialog({
           </div>
         </div>
       </form>
-    </dialog>
+    </Modal>
   );
 }
