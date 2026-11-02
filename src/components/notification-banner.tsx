@@ -7,6 +7,8 @@ import {
   requestNotificationPermission,
   subscribeNotificationStatus,
 } from "@/lib/notify";
+import { isPushConfigured } from "@/lib/push-subscription";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
 
 const DISMISS_KEY = "wdyd:notify-banner-dismissed";
 const DISMISS_EVENT = "wdyd:notify-banner-dismissed";
@@ -49,7 +51,11 @@ export function NotificationBanner() {
         {status === "default" ? (
           <>
             <p className="font-bold">予定時間になったら通知しますか？</p>
-            <p className="mt-0.5 text-zinc-600 dark:text-zinc-400">アプリを開いている間、予定時間に達した作業をお知らせします。</p>
+            <p className="mt-0.5 text-zinc-600 dark:text-zinc-400">
+              {isPushConfigured && isSupabaseConfigured
+                ? "予定時間に達した作業をお知らせします。アプリを閉じていても届きます。"
+                : "アプリを開いている間、予定時間に達した作業をお知らせします。"}
+            </p>
             <button
               type="button"
               onClick={() => void requestNotificationPermission()}

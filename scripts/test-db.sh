@@ -25,4 +25,10 @@ PSQL=("${RUN[@]}" psql -h "$TMP" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -q -X
 for f in "$ROOT"/supabase/migrations/*.sql; do
   "${PSQL[@]}" -d app -f "$f"
 done
-"${PSQL[@]}" -d app -f "$ROOT/supabase/tests/rls.test.sql"
+# Supabase と同じく、アプリ用のロールにテーブルの権限を与える（実際に読み書きできるかは RLS が決める）
+"${PSQL[@]}" -d app -c "grant usage on schema public to anon, authenticated, service_role; grant select, insert, update, delete on all tables in schema public to anon, authenticated, service_role;"
+for f in "$ROOT"/supabase/tests/*.test.sql; do
+  # テストごとにデータを空にする
+  "${PSQL[@]}" -d app -c "truncate public.tags, public.activities, public.templates, public.push_subscriptions, public.push_deliveries, auth.users cascade"
+  "${PSQL[@]}" -d app -f "$f"
+done

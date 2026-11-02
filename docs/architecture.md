@@ -95,8 +95,11 @@ src/
     store/             保存先（ブラウザ内 / Supabase）
     sync/              DB の行との変換・差分
     supabase/          Supabase クライアントとログイン状態
+    server/            サーバー側の処理（通知の送信）
+  app/api/push/dispatch/ 通知を送る API（定期実行から呼ばれる）
 supabase/
   migrations/          DB のスキーマ（SQL）
+  setup/               環境ごとの値を書き換えて実行する SQL（通知の定期実行）
   tests/               RLS のテスト（npm run test:db）
 docs/
 ```
@@ -108,4 +111,22 @@ docs/
 - Service Worker は `public/sw.js`。通知の表示と、通知タップ時に画面を前面に出す役割だけを持つ（オフライン用キャッシュはしない）
 - 予定時間の判定は `src/lib/domain/notification.ts`（純粋関数）。`DueNotifier`（`src/components/pwa.tsx`）が1秒ごとに確認し、通知済みのキーを localStorage（`wdyd:notified:v1`）に保存して重複を防ぐ
 - 通知の `tag` を作業ごとに固定しているので、複数のタブで開いていても通知は1つにまとまる
-- 将来、アプリを閉じていても通知するには Web Push（VAPID 鍵・購読情報の保存・予定時刻に送信するサーバー側の仕組み）が必要
+
+### Web Push（アプリを閉じていても届く通知）
+
+```
+Supabase pg_cron（1分ごと）
+  └─ pg_net で POST /api/push/dispatch（Authorization: Bearer CRON_SECRET）
+        └─ Vercel の Route Handler（src/app/api/push/dispatch/route.ts）
+              ├─ rpc claim_due_push_notifications()  … 送るべき通知を「送信済み」にしつつ取り出す
+              ├─ web-push で各端末へ送信（VAPID）
+              └─ 410/404 の宛先は rpc delete_push_subscription() で削除
+```
+
+- **宛先の登録**：ログイン中で通知が許可されていると、`PushSubscriptionSync`（`src/components/pwa.tsx`）がこの端末を `push_subscriptions` に登録する（本人の行だけ RLS で読み書き可）。ログアウト時に削除する
+- **二重送信の防止**：`push_deliveries` の主キー（作業 ID・予定時刻）で、同じ通知は一度しか取り出されない。予定時間を編集すると予定時刻が変わるので、改めて送られる
+- **古い通知は送らない**：予定時刻から12時間以上たったものは対象外
+- **アプリ内の通知との重複**：アプリを開いているときはアプリ内でも通知するが、同じ `tag` なので1つにまとまる
+- **秘密の値**：`SUPABASE_SECRET_KEY`・`VAPID_PRIVATE_KEY`・`CRON_SECRET` はサーバー（Vercel）だけが持つ。`push_deliveries` と送信用の関数は `service_role` 専用
+- **なぜ Vercel Cron を使わないか**：Hobby プランでは1日1回しか実行できないため。Supabase の pg_cron は1分ごとに実行できる
+- 定期実行の設定は `supabase/setup/push-cron.sql`（URL と合言葉を含むので、マイグレーションには入れない）

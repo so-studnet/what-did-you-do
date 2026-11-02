@@ -2,6 +2,7 @@
 
 import type { Activity } from "@/lib/domain/activity";
 import { dueAt } from "@/lib/domain/notification";
+import { dueNotificationTag } from "@/lib/domain/push";
 import { formatClock, formatHm, formatMinutes } from "@/lib/format";
 
 export type NotificationStatus =
@@ -67,7 +68,7 @@ export async function showDueNotification(activity: Activity, now: Date): Promis
   const options: NotificationOptions = {
     body,
     // 同じ作業の通知は複数タブから出しても1つにまとまる
-    tag: `wdyd-due-${activity.id}`,
+    tag: dueNotificationTag(activity.id),
     icon: "/icon-192.png",
     badge: "/icon-192.png",
   };

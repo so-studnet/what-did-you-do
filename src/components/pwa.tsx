@@ -1,10 +1,19 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { dueActivities, notificationKey, pruneNotified } from "@/lib/domain/notification";
 import { useAppData } from "@/lib/hooks/use-app-data";
 import { useNow } from "@/lib/hooks/use-now";
-import { getNotificationStatus, loadNotified, saveNotified, showDueNotification } from "@/lib/notify";
+import {
+  getNotificationStatus,
+  loadNotified,
+  saveNotified,
+  showDueNotification,
+  subscribeNotificationStatus,
+} from "@/lib/notify";
+import { ensurePushSubscription } from "@/lib/push-subscription";
+import { getSupabase } from "@/lib/supabase/client";
+import { useAuth } from "./auth-gate";
 
 /** Service Worker を登録する */
 export function ServiceWorkerRegistrar() {
@@ -35,6 +44,23 @@ export function DueNotifier() {
     saveNotified(notified);
     for (const a of due) void showDueNotification(a, now).catch(() => {});
   }, [now, data.activities]);
+
+  return null;
+}
+
+/**
+ * ログイン中で通知が許可されていれば、この端末を Web Push の宛先として登録する。
+ * アプリを閉じていても、サーバーから予定時間の通知が届くようになる。
+ */
+export function PushSubscriptionSync() {
+  const auth = useAuth();
+  const permission = useSyncExternalStore(subscribeNotificationStatus, getNotificationStatus, () => "unknown" as const);
+  const userId = auth.status === "signed-in" ? auth.userId : null;
+
+  useEffect(() => {
+    if (!userId || permission !== "granted") return;
+    ensurePushSubscription(getSupabase()).catch((e) => console.error("通知の宛先の登録に失敗しました", e));
+  }, [userId, permission]);
 
   return null;
 }

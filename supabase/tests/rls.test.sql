@@ -1,7 +1,5 @@
 -- RLS と制約のテスト。失敗すると例外で止まる。
 \set ON_ERROR_STOP on
-grant usage on schema public to anon, authenticated;
-grant select, insert, update, delete on all tables in schema public to anon, authenticated;
 
 insert into auth.users values ('00000000-0000-0000-0000-00000000000a'), ('00000000-0000-0000-0000-00000000000b');
 

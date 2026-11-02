@@ -9,3 +9,6 @@ $$;
 grant usage on schema auth to anon, authenticated;
 grant execute on function auth.uid() to anon, authenticated;
 create publication supabase_realtime;
+create role service_role nologin bypassrls;
+grant usage on schema auth to service_role;
+grant execute on function auth.uid() to service_role;
