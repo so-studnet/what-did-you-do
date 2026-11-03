@@ -110,7 +110,32 @@ Vercel のプロジェクト → **Settings** → **Environment Variables** に�
 2. Supabase の **Table Editor** で `push_subscriptions` に行が増えていることを確認する
 3. 予定時間「1分」で作業を開始し、アプリを閉じて1〜2分待つ
 
-届かないときは、`supabase/setup/push-cron.sql` の下にある確認用の SQL で、定期実行が動いているか・API が 200 を返しているかを確認する。API が `401` なら合言葉の不一致、`503` なら Vercel の環境変数の不足（応答の `missing` に足りない項目が出る）。
+### 7-6. 届かないとき
+通知は「端末の登録 → 定期実行 → API → 送信 → 端末で表示」の順に流れる。前から順に SQL Editor で確かめる。
+
+**テストのたびに新しい作業を開始すること。** 1つの作業の通知は、一度「送信済み」になると（送信に失敗しても）二度と送られない。
+
+| 確かめること | SQL | 正常なら |
+|---|---|---|
+| 端末が登録されているか | `select left(endpoint, 40), time_zone, created_at from public.push_subscriptions;` | 1行以上 |
+| 定期実行が登録されているか | `select jobname, schedule, active from cron.job;` | `wdyd-push-dispatch` が `active = true` |
+| 定期実行が動いているか | `select status, return_message, start_time from cron.job_run_details order by start_time desc limit 5;` | `succeeded` が毎分増える |
+| API の応答 | `select status_code, content::text, error_msg, created from net._http_response order by created desc limit 5;` | `200` |
+| 通知の対象として取り出されたか | `select activity_id, due_at, sent_at from public.push_deliveries order by sent_at desc limit 5;` | テストした作業の行がある |
+
+よくある原因:
+
+| 症状 | 原因と対処 |
+|---|---|
+| `relation "cron.job" does not exist` | pg_cron が有効になっていない。**Database** → **Extensions** で `pg_cron` と `pg_net` を有効にし、`push-cron.sql` を実行し直す（`vault.create_secret` が済んでいたらその行は消す） |
+| 端末の登録が0行 | 環境変数を追加したあと再デプロイしていない、またはアプリを開き直していない。iPhone はホーム画面のアイコンから開く |
+| API が `401` で `{"error":"unauthorized"}` | Vercel の `CRON_SECRET` と、Vault に保存した合言葉が違う |
+| API が `401` / `403` で中身が HTML | Vercel のログイン保護がかかった URL（デプロイごとの URL）を呼んでいる。**Domains** に出ている本番の URL にする |
+| API が `503` | `missing` に出ている環境変数が足りない。追加して再デプロイ |
+| API が `500`、または応答に `"failed"` | Vercel の **Logs** で `/api/push/dispatch` のエラーを見る |
+| 応答が `"sent":1` なのに届かない | 端末の通知設定・集中モード・省電力を確認。アプリを完全に終了して開き直す |
+
+URL や合言葉を直すときは、`select cron.unschedule('wdyd-push-dispatch');` で消してから `push-cron.sql` を実行し直す。
 
 ## DB のテスト（開発者向け）
 
