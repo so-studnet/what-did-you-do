@@ -137,6 +137,16 @@ Vercel のプロジェクト → **Settings** → **Environment Variables** に�
 
 URL や合言葉を直すときは、`select cron.unschedule('wdyd-push-dispatch');` で消してから `push-cron.sql` を実行し直す。
 
+## 8. 何も作業していない時間の通知
+
+7（Web Push）の設定が済んでいることが前提です。追加の環境変数や定期実行の登録は要りません。
+
+1. Supabase の **SQL Editor** で `supabase/migrations/20261105000000_idle_reminder.sql` の中身を貼り付けて実行する
+2. アプリの右上の **⋯** → **設定** を開き、オン・オフ、間隔、通知する時間帯を確認して **保存** する（保存しなくても、初期値のオン・15分ごと・8:00〜23:00 で動きます）
+3. 確かめるには、作業をすべて終了した状態で間隔の分だけ待つ
+
+届かないときは 7-6 と同じ順で確かめる。空き時間の通知は `push_deliveries` に `activity_id` が `idle:` で始まる行として記録される。
+
 ## DB のテスト（開発者向け）
 
 PostgreSQL 15 以上がインストールされていれば、マイグレーションと RLS をローカルで確認できる。

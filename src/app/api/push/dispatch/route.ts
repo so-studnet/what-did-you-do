@@ -1,9 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import webpush from "web-push";
-import { type DuePushRow, dispatchDuePush, safeEqual } from "@/lib/server/push-dispatch";
+import { type DuePushRow, type IdlePushRow, dispatchPush, safeEqual } from "@/lib/server/push-dispatch";
 
 /**
- * 予定時間に達した作業の通知を送る。
+ * 予定時間に達した作業の通知と、何も作業していない時間の通知を送る。
  * Supabase の pg_cron から1分ごとに呼ばれる（docs/setup.md の「7. アプリを閉じていても通知する」）。
  * Authorization: Bearer <CRON_SECRET> が必要。
  */
@@ -38,11 +38,20 @@ export async function POST(request: Request) {
   };
 
   try {
-    const result = await dispatchDuePush({
-      claim: async () => {
+    const result = await dispatchPush({
+      claimDue: async () => {
         const { data, error } = await admin.rpc("claim_due_push_notifications");
         if (error) throw error;
         return (data ?? []) as DuePushRow[];
+      },
+      claimIdle: async () => {
+        const { data, error } = await admin.rpc("claim_idle_push_notifications");
+        if (error) {
+          // 空き時間の通知のマイグレーションが未適用でも、予定時間の通知は止めない
+          console.error("空き時間の通知の取り出しに失敗しました", error);
+          return [];
+        }
+        return (data ?? []) as IdlePushRow[];
       },
       send: async (target, payload) => {
         await webpush.sendNotification(target, JSON.stringify(payload), {

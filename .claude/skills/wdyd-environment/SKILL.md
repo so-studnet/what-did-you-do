@@ -19,7 +19,7 @@ Vercel
   ├─ main ブランチ = 本番。PR ごとにプレビューのデプロイ（GitHub のステータスに出る）
   └─ POST /api/push/dispatch（唯一のサーバー処理。Web Push を送る）
 Supabase
-  ├─ PostgreSQL（tags / activities / templates / push_subscriptions / push_deliveries）
+  ├─ PostgreSQL（tags / activities / templates / push_subscriptions / push_deliveries / user_settings）
   ├─ Auth（メール + パスワード。新規登録はオフ）
   └─ pg_cron（1分ごと）→ pg_net で /api/push/dispatch を呼ぶ
 ```
@@ -85,6 +85,7 @@ pg_cron（`supabase/setup/push-cron.sql` で登録）が毎分 `/api/push/dispat
 - Vercel Cron は Hobby プランだと1日1回しか動かないので使っていない
 - pg_cron が呼ぶ URL は本番のドメインにする。デプロイごとの URL は Vercel のログイン保護で HTML の 401/403 が返る
 - アプリ内の通知（`DueNotifier`）とサーバーからの通知は同じ `tag`（`wdyd-due-<作業ID>`）で1つにまとまる
+- 同じ呼び出しで `claim_idle_push_notifications()`（何も作業していない時間の通知、設定は `user_settings`、画面は `/settings`）も送る。`push_deliveries` には `idle:<ユーザーID>` で記録され、tag は `wdyd-idle`。SQL の関数は基準時刻 `at_time` を引数に取れるので、DB テストでは時刻を固定して確かめる
 
 「通知が来ない」と言われたら `references/push-troubleshooting.md` の順で切り分ける（端末の登録 → cron → API の応答 → 取り出し → 端末側）。
 
@@ -107,4 +108,4 @@ Chromium と Playwright が入っている（`require('playwright')`、`NODE_PAT
 
 ## 残っている課題・改善案
 
-`docs/roadmap.md` を見る。M0〜M10 は完了。改善案として出したもの（作業名の候補、切り替えボタン、止め忘れ警告、メモ、推移グラフ、目標時間、超過の再通知、CSV 出力、オフライン記録、通知の送り直し、CI）は利用者の選択待ち。
+`docs/roadmap.md` を見る。M0〜M10 は完了、M11（空き時間の通知）は実装済みで本番の設定待ち。改善案として出したもの（作業名の候補、切り替えボタン、止め忘れ警告、メモ、推移グラフ、目標時間、超過の再通知、CSV 出力、オフライン記録、通知の送り直し、CI）は利用者の選択待ち。

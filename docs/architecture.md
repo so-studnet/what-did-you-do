@@ -130,3 +130,14 @@ Supabase pg_cron（1分ごと）
 - **秘密の値**：`SUPABASE_SECRET_KEY`・`VAPID_PRIVATE_KEY`・`CRON_SECRET` はサーバー（Vercel）だけが持つ。`push_deliveries` と送信用の関数は `service_role` 専用
 - **なぜ Vercel Cron を使わないか**：Hobby プランでは1日1回しか実行できないため。Supabase の pg_cron は1分ごとに実行できる
 - 定期実行の設定は `supabase/setup/push-cron.sql`（URL と合言葉を含むので、マイグレーションには入れない）
+
+### 何も作業していない時間の通知（F8）
+- 設定は `user_settings`（1ユーザー1行、RLS で本人のみ）。行がなければ既定値（オン・15分・8〜23時）で扱う。設定画面は `/settings`
+- 同じ定期実行（毎分の `/api/push/dispatch`）の中で `claim_idle_push_notifications()` も呼ぶ
+  - 対象：宛先が登録されていて、実行中の作業がないユーザー
+  - 数え始め `base` = 最後の作業の終了時刻と、今日の通知時間帯の始まりの遅いほう（時間帯はユーザーのタイムゾーンで計算）
+  - 区切り `slot` = `base + 間隔 × k`（k ≥ 1 で、今以前の最後の区切り）。今が時間帯の外なら送らない
+  - `push_deliveries` に `('idle:<ユーザーID>', slot)` を記録して、同じ区切りで二重に送らない
+  - テストしやすいように、関数は基準時刻 `at_time` を引数で受け取る（既定は `now()`）
+- 通知の `tag` は `wdyd-idle` で固定し、新しい通知が古い通知を置き換える
+- このマイグレーションが未適用でも、予定時間の通知は止めない（取り出しの失敗はログに出して無視する）
