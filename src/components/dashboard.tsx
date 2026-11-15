@@ -63,6 +63,8 @@ export function Dashboard() {
                 tags={tags}
                 now={now}
                 onStop={actions.stop}
+                onStopAtPlanned={actions.stopAtPlanned}
+                onExtend={actions.extend}
                 onEdit={(activity) => setEditTarget({ kind: "edit", activity })}
               />
             ))}

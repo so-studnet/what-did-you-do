@@ -6,7 +6,9 @@ import {
   type StartInput,
   addActivity,
   deleteActivity,
+  extendActivity,
   startActivity,
+  stopActivityAtPlanned,
   stopActivity,
   updateActivity,
 } from "@/lib/domain/activity";
@@ -30,6 +32,12 @@ const actions = {
     })),
   stop: (id: string) =>
     appStore.update((d) => ({ ...d, activities: stopActivity(d.activities, id, new Date()) })),
+  /** 予定時刻（開始 + 予定時間）で終了したことにする（止め忘れの記録を正しくする） */
+  stopAtPlanned: (id: string) =>
+    appStore.update((d) => ({ ...d, activities: stopActivityAtPlanned(d.activities, id, new Date()) })),
+  /** 予定を「今から minutes 分後」まで延ばす */
+  extend: (id: string, minutes: number) =>
+    appStore.update((d) => ({ ...d, activities: extendActivity(d.activities, id, new Date(), minutes) })),
   updateActivity: (id: string, draft: ActivityDraft) =>
     appStore.update((d) => ({
       ...d,

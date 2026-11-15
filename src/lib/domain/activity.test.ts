@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   type Activity,
   addActivity,
+  canExtend,
+  extendActivity,
+  stopActivityAtPlanned,
   deleteActivity,
   endedOnSameDay,
   parseActivities,
@@ -17,10 +20,17 @@ const t = (iso: string) => new Date(iso);
 
 describe("validateStartInput", () => {
   it("前後の空白を取り除く", () => {
-    expect(validateStartInput({ title: "  読書 ", plannedMin: null, tagIds: [] })).toEqual({
+    expect(validateStartInput({ title: "  読書 ", plannedMin: 30, tagIds: [] })).toEqual({
       ok: true,
-      value: { title: "読書", plannedMin: null, tagIds: [] },
+      value: { title: "読書", plannedMin: 30, tagIds: [] },
     });
+  });
+  it("予定時間がなければエラー（requirePlanned: false なら任意）", () => {
+    expect(validateStartInput({ title: "読書", plannedMin: null, tagIds: [] })).toEqual({
+      ok: false,
+      error: "予定時間を選んでください",
+    });
+    expect(validateStartInput({ title: "読書", plannedMin: null, tagIds: [] }, { requirePlanned: false }).ok).toBe(true);
   });
   it("空のタイトルはエラー", () => {
     expect(validateStartInput({ title: "   ", plannedMin: null, tagIds: [] }).ok).toBe(false);
@@ -39,7 +49,7 @@ describe("validateStartInput", () => {
 describe("startActivity / stopActivity", () => {
   it("複数の作業を並行して開始でき、それぞれ独立に終了できる", () => {
     let list: Activity[] = [];
-    list = startActivity(list, { title: "開発", plannedMin: null, tagIds: [] }, t("2026-11-02T09:00:00Z"), "a");
+    list = startActivity(list, { title: "開発", plannedMin: 60, tagIds: [] }, t("2026-11-02T09:00:00Z"), "a");
     list = startActivity(list, { title: "洗濯", plannedMin: 30, tagIds: [] }, t("2026-11-02T09:10:00Z"), "b");
     expect(runningActivities(list).map((a) => a.id)).toEqual(["a", "b"]);
 
@@ -51,12 +61,13 @@ describe("startActivity / stopActivity", () => {
     });
   });
 
-  it("不正な入力では開始できない", () => {
-    expect(() => startActivity([], { title: "", plannedMin: null, tagIds: [] }, new Date(), "a")).toThrow();
+  it("不正な入力・予定時間なしでは開始できない", () => {
+    expect(() => startActivity([], { title: "", plannedMin: 30, tagIds: [] }, new Date(), "a")).toThrow();
+    expect(() => startActivity([], { title: "x", plannedMin: null, tagIds: [] }, new Date(), "a")).toThrow();
   });
 
   it("終了済みの作業を再度終了しても終了時刻は変わらない", () => {
-    let list = startActivity([], { title: "x", plannedMin: null, tagIds: [] }, t("2026-11-02T09:00:00Z"), "a");
+    let list = startActivity([], { title: "x", plannedMin: 30, tagIds: [] }, t("2026-11-02T09:00:00Z"), "a");
     list = stopActivity(list, "a", t("2026-11-02T10:00:00Z"));
     list = stopActivity(list, "a", t("2026-11-02T11:00:00Z"));
     expect(list[0].endedAt).toBe("2026-11-02T10:00:00.000Z");
@@ -64,7 +75,7 @@ describe("startActivity / stopActivity", () => {
 
   it("元の配列を変更しない", () => {
     const list: Activity[] = [];
-    startActivity(list, { title: "x", plannedMin: null, tagIds: [] }, new Date(), "a");
+    startActivity(list, { title: "x", plannedMin: 30, tagIds: [] }, new Date(), "a");
     expect(list).toEqual([]);
   });
 });
@@ -122,8 +133,15 @@ describe("validateDraft", () => {
     expect(validateDraft({ ...base, endedAt: t("2026-11-02T12:01:00Z") }, now, { requireEnd: true }).ok).toBe(false);
   });
   it("requireEnd のとき終了なしはエラー、そうでなければOK", () => {
-    expect(validateDraft({ ...base, endedAt: null }, now, { requireEnd: true }).ok).toBe(false);
-    expect(validateDraft({ ...base, endedAt: null }, now, { requireEnd: false }).ok).toBe(true);
+    expect(validateDraft({ ...base, endedAt: null, plannedMin: 30 }, now, { requireEnd: true }).ok).toBe(false);
+    expect(validateDraft({ ...base, endedAt: null, plannedMin: 30 }, now, { requireEnd: false }).ok).toBe(true);
+  });
+  it("実行中の作業は予定時間が必須、終了済みの記録は任意", () => {
+    expect(validateDraft({ ...base, endedAt: null }, now, { requireEnd: false })).toEqual({
+      ok: false,
+      error: "予定時間を選んでください",
+    });
+    expect(validateDraft(base, now, { requireEnd: true }).ok).toBe(true);
   });
   it("不正な日時はエラー", () => {
     expect(validateDraft({ ...base, startedAt: new Date(Number.NaN) }, now, { requireEnd: true }).ok).toBe(false);
@@ -166,5 +184,36 @@ describe("updateActivity / addActivity / deleteActivity", () => {
   });
   it("削除できる", () => {
     expect(deleteActivity(list, "e")).toEqual([running]);
+  });
+});
+
+describe("extendActivity / stopActivityAtPlanned", () => {
+  const now = t("2026-11-02T13:00:00Z");
+  // 9:00 開始・予定30分 → 9:30 から超過中（今は 13:00）
+  const meal: Activity = { id: "m", title: "食事", startedAt: "2026-11-02T09:00:00.000Z", endedAt: null, plannedMin: 30, tagIds: [] };
+
+  it("延長は「今から○分後」を新しい予定時刻にする（経過分は切り上げ）", () => {
+    const next = extendActivity([meal], "m", now, 15);
+    expect(next[0].plannedMin).toBe(4 * 60 + 15);
+    const at = t("2026-11-02T13:00:20Z"); // 240分20秒経過 → 241分 + 30
+    expect(extendActivity([meal], "m", at, 30)[0].plannedMin).toBe(241 + 30);
+  });
+  it("24時間を超える延長はできない", () => {
+    const long = { ...meal, startedAt: "2026-11-01T13:30:00.000Z" }; // 23時間30分経過
+    expect(canExtend(long, now, 15)).toBe(true);
+    expect(canExtend(long, now, 31)).toBe(false);
+    expect(() => extendActivity([long], "m", now, 31)).toThrow();
+  });
+  it("終了済みの作業は延長できない", () => {
+    expect(() => extendActivity([{ ...meal, endedAt: "2026-11-02T10:00:00.000Z" }], "m", now, 15)).toThrow();
+  });
+  it("予定時刻で終了したことにする", () => {
+    expect(stopActivityAtPlanned([meal], "m", now)[0].endedAt).toBe("2026-11-02T09:30:00.000Z");
+  });
+  it("予定時刻がまだ先なら今で終了する", () => {
+    expect(stopActivityAtPlanned([meal], "m", t("2026-11-02T09:10:00Z"))[0].endedAt).toBe("2026-11-02T09:10:00.000Z");
+  });
+  it("予定時間のない作業には使えない", () => {
+    expect(() => stopActivityAtPlanned([{ ...meal, plannedMin: null }], "m", now)).toThrow();
   });
 });

@@ -31,7 +31,7 @@ export function TemplateManager() {
               <div className="min-w-0 flex-1">
                 <p className="truncate">{t.title}</p>
                 <p className="text-xs text-zinc-500">
-                  {t.plannedMin === null ? "予定時間なし" : `予定 ${formatMinutes(t.plannedMin)}`}
+                  {`予定 ${formatMinutes(t.plannedMin ?? 15)}`}
                 </p>
                 <div className="mt-1">
                   <TagChips tags={tags} tagIds={t.tagIds} />
@@ -133,7 +133,7 @@ function TemplateDialog({
           <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          予定時間（分・空欄なら無制限）
+          予定時間（分）
           <input
             type="number"
             inputMode="numeric"

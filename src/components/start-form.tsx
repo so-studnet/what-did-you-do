@@ -5,8 +5,8 @@ import { MAX_PLANNED_MIN, type StartInput, validateStartInput } from "@/lib/doma
 import type { Tag } from "@/lib/domain/tag";
 import { TagPicker } from "./tag-picker";
 
-const PRESETS: { label: string; min: number | null }[] = [
-  { label: "なし", min: null },
+// 予定時間は必須。「なし」は置かず、最初は何も選ばれていない状態にする（作業への時間の意識を持つため）
+const PRESETS: { label: string; min: number }[] = [
   { label: "15分", min: 15 },
   { label: "30分", min: 30 },
   { label: "1時間", min: 60 },
@@ -21,7 +21,9 @@ export function StartForm({
   onStart: (input: StartInput) => void;
 }) {
   const [title, setTitle] = useState("");
-  const [planned, setPlanned] = useState(""); // 空 = 無制限
+  const [planned, setPlanned] = useState(""); // 空 = まだ選んでいない
+  // 予定時間を選ばずに開始を押したとき、選ぶ欄を目立たせる
+  const [plannedMissing, setPlannedMissing] = useState(false);
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   // 開始のたびにタグ選択欄を作り直して閉じる
@@ -34,10 +36,13 @@ export function StartForm({
     const result = validateStartInput({ title, plannedMin, tagIds });
     if (!result.ok) {
       setError(result.error);
+      setPlannedMissing(plannedMin === null && title.trim() !== "");
       return;
     }
     onStart(result.value);
     setTitle("");
+    setPlanned("");
+    setPlannedMissing(false);
     setTagIds([]);
     setResetCount((n) => n + 1);
     setError(null);
@@ -63,8 +68,15 @@ export function StartForm({
         </button>
       </div>
 
-      <fieldset className="flex flex-wrap items-center gap-2 text-sm">
-        <legend className="mb-1 text-zinc-500">予定時間</legend>
+      <fieldset
+        aria-invalid={plannedMissing}
+        className={`flex flex-wrap items-center gap-2 rounded-xl text-sm ${
+          plannedMissing ? "-m-2 bg-red-50 p-2 ring-2 ring-red-500 dark:bg-red-950/40" : ""
+        }`}
+      >
+        <legend className={`mb-1 ${plannedMissing ? "font-bold text-red-600 dark:text-red-400" : "text-zinc-500"}`}>
+          予定時間{plannedMissing && "（選んでください）"}
+        </legend>
         {PRESETS.map((p) => {
           const selected = plannedMin === p.min;
           return (
@@ -72,7 +84,11 @@ export function StartForm({
               key={p.label}
               type="button"
               aria-pressed={selected}
-              onClick={() => setPlanned(p.min === null ? "" : String(p.min))}
+              onClick={() => {
+                setPlanned(String(p.min));
+                setPlannedMissing(false);
+                setError(null);
+              }}
               className={`rounded-full border px-3 py-1.5 ${
                 selected
                   ? "border-blue-600 bg-blue-600 text-white"
@@ -90,7 +106,10 @@ export function StartForm({
             min={1}
             max={MAX_PLANNED_MIN}
             value={planned}
-            onChange={(e) => setPlanned(e.target.value)}
+            onChange={(e) => {
+              setPlanned(e.target.value);
+              setPlannedMissing(false);
+            }}
             placeholder="—"
             aria-label="予定時間（分）"
             className="w-16 rounded-lg border border-zinc-300 bg-transparent px-2 py-1.5 text-right dark:border-zinc-700"
@@ -102,7 +121,7 @@ export function StartForm({
       <TagPicker key={resetCount} tags={tags} value={tagIds} onChange={setTagIds} />
 
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
           {error}
         </p>
       )}

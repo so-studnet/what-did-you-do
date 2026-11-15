@@ -103,7 +103,7 @@ export function EditDialog({
         </label>
 
         <label className="flex flex-col gap-1 text-sm">
-          予定時間（分・空欄なら無制限）
+          {isEdit && target.activity.endedAt !== null ? "予定時間（分・空欄ならなし）" : "予定時間（分）"}
           <input
             type="number"
             inputMode="numeric"

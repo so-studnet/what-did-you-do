@@ -85,6 +85,7 @@ pg_cron（`supabase/setup/push-cron.sql` で登録）が毎分 `/api/push/dispat
 - Vercel Cron は Hobby プランだと1日1回しか動かないので使っていない
 - pg_cron が呼ぶ URL は本番のドメインにする。デプロイごとの URL は Vercel のログイン保護で HTML の 401/403 が返る
 - アプリ内の通知（`DueNotifier`）とサーバーからの通知は同じ `tag`（`wdyd-due-<作業ID>`）で1つにまとまる
+- 同じ呼び出しで `claim_overrun_push_notifications()`（予定時間を過ぎた作業の定期通知。`overrun:<作業ID>` で記録、tag は予定時刻の通知と同じで `renotify`、時間帯の制限なし）も送る
 - 同じ呼び出しで `claim_idle_push_notifications()`（何も作業していない時間の通知、設定は `user_settings`、画面は `/settings`）も送る。`push_deliveries` には `idle:<ユーザーID>` で記録され、tag は `wdyd-idle`。SQL の関数は基準時刻 `at_time` を引数に取れるので、DB テストでは時刻を固定して確かめる
 
 「通知が来ない」と言われたら `references/push-troubleshooting.md` の順で切り分ける（端末の登録 → cron → API の応答 → 取り出し → 端末側）。
@@ -108,4 +109,4 @@ Chromium と Playwright が入っている（`require('playwright')`、`NODE_PAT
 
 ## 残っている課題・改善案
 
-`docs/roadmap.md` を見る。M0〜M10 は完了、M11（空き時間の通知）は実装済みで本番の設定待ち。改善案として出したもの（作業名の候補、切り替えボタン、止め忘れ警告、メモ、推移グラフ、目標時間、超過の再通知、CSV 出力、オフライン記録、通知の送り直し、CI）は利用者の選択待ち。
+`docs/roadmap.md` を見る。M0〜M11 は完了、M12（止め忘れ防止：予定時間の必須化・超過中の定期通知・延長と予定時刻で終了）は実装済みで本番の設定待ち。予定時間は開始・テンプレートで必須だが、過去の終了済みの記録には予定なし（null）が残っている点に注意。改善案として出したもの（作業名の候補、切り替えボタン、メモ、推移グラフ、目標時間、CSV 出力、オフライン記録、通知の送り直し、CI、ロック画面の表示）は利用者の選択待ち。ロック画面の表示は、iPhone のライブアクティビティが Web アプリでは使えないため、Scriptable のロック画面ウィジェット（無料・反映に遅れ）か、正式な iPhone アプリ（年 $99）の二択で保留中。

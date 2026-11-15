@@ -46,6 +46,10 @@ export function activityToTemplateInput(a: Activity): StartInput {
   return { title: a.title, plannedMin: a.plannedMin, tagIds: [...a.tagIds] };
 }
 
+/** 予定時間が必須になる前に作られた、予定なしのテンプレートに入れる仮の予定時間（分） */
+export const LEGACY_TEMPLATE_PLANNED_MIN = 15;
+
+/** 保存データを読み込む。予定なしのテンプレートは仮の予定時間（15分）にする。 */
 export function parseTemplates(raw: unknown): Template[] {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -59,7 +63,7 @@ export function parseTemplates(raw: unknown): Template[] {
     .map((t) => ({
       id: t.id as string,
       title: t.title as string,
-      plannedMin: t.plannedMin as number | null,
+      plannedMin: (t.plannedMin as number | null) ?? LEGACY_TEMPLATE_PLANNED_MIN,
       tagIds: Array.isArray(t.tagIds) ? t.tagIds.filter((x): x is string => typeof x === "string") : [],
     }));
 }

@@ -25,15 +25,23 @@ export type ValidationResult =
   | { ok: true; value: StartInput }
   | { ok: false; error: string };
 
-/** 開始フォームの入力を検証・正規化する */
-export function validateStartInput(input: StartInput): ValidationResult {
+/**
+ * 開始フォーム・テンプレートの入力を検証・正規化する。
+ * 予定時間は、作業への時間の意識を持つために必須（requirePlanned: false で任意にできる）。
+ */
+export function validateStartInput(
+  input: StartInput,
+  { requirePlanned = true }: { requirePlanned?: boolean } = {},
+): ValidationResult {
   const title = input.title.trim();
   if (title === "") return { ok: false, error: "作業内容を入力してください" };
   if (title.length > MAX_TITLE_LENGTH) {
     return { ok: false, error: `作業内容は${MAX_TITLE_LENGTH}文字以内にしてください` };
   }
   const { plannedMin } = input;
-  if (plannedMin != null) {
+  if (plannedMin == null) {
+    if (requirePlanned) return { ok: false, error: "予定時間を選んでください" };
+  } else {
     if (!Number.isInteger(plannedMin) || plannedMin < 1 || plannedMin > MAX_PLANNED_MIN) {
       return { ok: false, error: `予定時間は1〜${MAX_PLANNED_MIN}分の整数で指定してください` };
     }
@@ -72,6 +80,49 @@ export function stopActivity(
   return activities.map((a) =>
     a.id === id && a.endedAt === null ? { ...a, endedAt: now.toISOString() } : a,
   );
+}
+
+/** 延長できる最大の予定時間を超えるか */
+export function canExtend(a: Activity, now: Date, minutes: number): boolean {
+  return a.endedAt === null && extendedPlannedMin(a, now, minutes) <= MAX_PLANNED_MIN;
+}
+
+/** 今から minutes 分後を新しい予定時刻にしたときの予定時間（分・切り上げ） */
+function extendedPlannedMin(a: Activity, now: Date, minutes: number): number {
+  const elapsedMin = Math.ceil((now.getTime() - Date.parse(a.startedAt)) / 60_000);
+  return Math.max(1, elapsedMin) + minutes;
+}
+
+/**
+ * 実行中の作業の予定時間を「今から minutes 分後」まで延ばした一覧を返す。
+ * 延ばした時刻までは超過にならず、超過中の定期通知も止まる。
+ */
+export function extendActivity(
+  activities: readonly Activity[],
+  id: string,
+  now: Date,
+  minutes: number,
+): Activity[] {
+  const target = activities.find((a) => a.id === id);
+  if (!target || target.endedAt !== null) throw new Error("実行中の作業が見つかりません");
+  if (!canExtend(target, now, minutes)) {
+    throw new Error(`予定時間は${MAX_PLANNED_MIN / 60}時間までしか延ばせません`);
+  }
+  const plannedMin = extendedPlannedMin(target, now, minutes);
+  return activities.map((a) => (a.id === id ? { ...a, plannedMin } : a));
+}
+
+/**
+ * 実行中の作業を、予定時刻（開始 + 予定時間）で終了したことにした一覧を返す。
+ * 止め忘れた作業を正しい時間で記録するため。予定時刻が今より後なら今で終了する。
+ */
+export function stopActivityAtPlanned(activities: readonly Activity[], id: string, now: Date): Activity[] {
+  const target = activities.find((a) => a.id === id);
+  if (!target || target.endedAt !== null || target.plannedMin === null) {
+    throw new Error("予定時間のある実行中の作業が見つかりません");
+  }
+  const planned = Date.parse(target.startedAt) + target.plannedMin * 60_000;
+  return stopActivity(activities, id, new Date(Math.min(planned, now.getTime())));
 }
 
 /** 実行中の作業（開始が古い順） */
@@ -155,7 +206,8 @@ export function validateDraft(
   now: Date,
   { requireEnd }: { requireEnd: boolean },
 ): DraftValidationResult {
-  const base = validateStartInput(draft);
+  // 実行中の作業には予定時間が必須。終了済みの記録（過去の「予定なし」を含む）は任意
+  const base = validateStartInput(draft, { requirePlanned: draft.endedAt === null });
   if (!base.ok) return base;
   const { startedAt, endedAt } = draft;
   if (Number.isNaN(startedAt.getTime())) return { ok: false, error: "開始時刻を入力してください" };

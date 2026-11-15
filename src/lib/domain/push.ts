@@ -7,6 +7,8 @@ export type PushPayload = {
   /** 同じ作業の通知（アプリ内の通知を含む）を1つにまとめるためのタグ */
   tag: string;
   url: string;
+  /** 同じ tag の通知を置き換えるときも、音や振動で知らせ直す */
+  renotify?: boolean;
 };
 
 export type DueNotice = {
@@ -60,5 +62,20 @@ export function buildIdlePushPayload(n: IdleNotice, now: Date): PushPayload {
     n.lastTitle !== null && n.lastEndedAt !== null && n.lastEndedAt.getTime() >= n.baseAt.getTime()
       ? `「${n.lastTitle}」が終わってから${idle}、何も記録していません`
       : `今日はまだ何も記録していません（${idle}経過）`;
-  return { title: "今、何をしていますか？", body, tag: IDLE_NOTIFICATION_TAG, url: "/" };
+  return { title: "今、何をしていますか？", body, tag: IDLE_NOTIFICATION_TAG, url: "/", renotify: true };
+}
+
+/**
+ * 予定時間を過ぎても続いている作業の定期通知。予定時刻の通知と同じ tag で置き換え、毎回知らせ直す。
+ */
+export function buildOverrunPushPayload(n: DueNotice, now: Date, timeZone: string): PushPayload {
+  const over = formatMinutes(Math.max(0, Math.floor((now.getTime() - n.dueAt.getTime()) / 60_000)));
+  const start = formatClockInZone(n.startedAt, timeZone);
+  return {
+    title: `「${n.title}」終了し忘れていませんか？`,
+    body: `予定の${formatMinutes(n.plannedMin)}を${over}超過しています（${start}開始）`,
+    tag: dueNotificationTag(n.activityId),
+    url: "/",
+    renotify: true,
+  };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { type Activity, toTimed } from "@/lib/domain/activity";
+import { type Activity, canExtend, toTimed } from "@/lib/domain/activity";
 import type { Tag } from "@/lib/domain/tag";
 import { elapsedMs, formatDuration, overrunMs } from "@/lib/domain/time";
 import { formatClock, formatMinutes } from "@/lib/format";
@@ -11,12 +11,18 @@ export function RunningCard({
   tags,
   now,
   onStop,
+  onStopAtPlanned,
+  onExtend,
   onEdit,
 }: {
   activity: Activity;
   tags: readonly Tag[];
   now: Date | null;
   onStop: (id: string) => void;
+  /** 予定時刻で終了したことにする */
+  onStopAtPlanned: (id: string) => void;
+  /** 予定を今から minutes 分後まで延ばす */
+  onExtend: (id: string, minutes: number) => void;
   onEdit: (activity: Activity) => void;
 }) {
   const timed = toTimed(activity);
@@ -25,6 +31,10 @@ export function RunningCard({
   const isOver = overrun > 0;
   const plannedMs = activity.plannedMin === null ? null : activity.plannedMin * 60_000;
   const progress = plannedMs === null ? null : Math.min(1, elapsed / plannedMs);
+  const plannedEnd =
+    activity.plannedMin === null
+      ? null
+      : new Date(Date.parse(activity.startedAt) + activity.plannedMin * 60_000).toISOString();
 
   return (
     <li
@@ -84,6 +94,37 @@ export function RunningCard({
           />
         </div>
       )}
+
+      {isOver && now && plannedEnd && (
+        <div className="flex flex-col gap-2 border-t border-red-200 pt-3 dark:border-red-900">
+          <p className="text-sm font-bold text-red-700 dark:text-red-300">終了し忘れていませんか？</p>
+          <div className="flex flex-wrap gap-2">
+            {EXTEND_OPTIONS.map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => onExtend(activity.id, m)}
+                disabled={!canExtend(activity, now, m)}
+                aria-label={`「${activity.title}」をあと${m}分続ける`}
+                className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-900"
+              >
+                あと{m}分
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => onStopAtPlanned(activity.id)}
+              aria-label={`「${activity.title}」を予定時刻で終了`}
+              className="rounded-xl border border-red-300 bg-white px-3 py-2 text-sm font-bold text-red-700 dark:border-red-800 dark:bg-zinc-900 dark:text-red-300"
+            >
+              予定時刻（{formatClock(plannedEnd)}）で終了
+            </button>
+          </div>
+        </div>
+      )}
     </li>
   );
 }
+
+/** 超過中に予定を延ばすときの選択肢（今から何分後まで続けるか） */
+const EXTEND_OPTIONS = [15, 30] as const;

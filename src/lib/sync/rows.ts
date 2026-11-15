@@ -1,7 +1,7 @@
 import type { Activity } from "@/lib/domain/activity";
 import type { AppData } from "@/lib/domain/app-data";
 import type { Tag } from "@/lib/domain/tag";
-import type { Template } from "@/lib/domain/template";
+import { LEGACY_TEMPLATE_PLANNED_MIN, type Template } from "@/lib/domain/template";
 
 // DB の行（Supabase の public スキーマ）。user_id はDB側で auth.uid() が入るので送らない。
 
@@ -53,7 +53,12 @@ export const templateToRow = (t: Template, index: number): TemplateRow => ({
 export const rowsToTemplates = (rows: readonly TemplateRow[]): Template[] =>
   [...rows]
     .sort((a, b) => a.sort_order - b.sort_order || a.id.localeCompare(b.id))
-    .map((r) => ({ id: r.id, title: r.title, plannedMin: r.planned_min, tagIds: r.tag_ids ?? [] }));
+    .map((r) => ({
+      id: r.id,
+      title: r.title,
+      plannedMin: r.planned_min ?? LEGACY_TEMPLATE_PLANNED_MIN,
+      tagIds: r.tag_ids ?? [],
+    }));
 
 export type RowDiff<R> = { upserts: R[]; deletes: string[] };
 
