@@ -23,6 +23,8 @@ self.addEventListener("push", (event) => {
     self.registration.showNotification(data.title || "What did you do", {
       body: data.body || "",
       tag: data.tag,
+      // 同じ tag の通知を置き換えるときも、音や振動で知らせ直す（超過中・空き時間の定期通知）
+      renotify: Boolean(data.tag && data.renotify),
       icon: "/icon-192.png",
       badge: "/icon-192.png",
       data: { url: data.url || "/" },

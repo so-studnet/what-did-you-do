@@ -2,13 +2,13 @@
 
 import { type FormEvent, useEffect, useState } from "react";
 import {
-  DEFAULT_IDLE_SETTINGS,
-  IDLE_INTERVAL_OPTIONS,
-  type IdleSettings,
-  validateIdleSettings,
-} from "@/lib/domain/idle-settings";
+  DEFAULT_NOTIFICATION_SETTINGS,
+  INTERVAL_OPTIONS,
+  type NotificationSettings,
+  validateNotificationSettings,
+} from "@/lib/domain/notification-settings";
 import { isPushConfigured } from "@/lib/push-subscription";
-import { loadIdleSettings, saveIdleSettings } from "@/lib/supabase/settings";
+import { loadNotificationSettings, saveNotificationSettings } from "@/lib/supabase/settings";
 import { useAuth } from "./auth-gate";
 import { inputClass } from "./modal";
 
@@ -24,17 +24,17 @@ export function SettingsView() {
       </p>
     );
   }
-  return <IdleSettingsForm key={auth.userId} userId={auth.userId} />;
+  return <NotificationSettingsForm key={auth.userId} userId={auth.userId} />;
 }
 
-type LoadState = { status: "loading" } | { status: "ready"; settings: IdleSettings } | { status: "error" };
+type LoadState = { status: "loading" } | { status: "ready"; settings: NotificationSettings } | { status: "error" };
 
-function IdleSettingsForm({ userId }: { userId: string }) {
+function NotificationSettingsForm({ userId }: { userId: string }) {
   const [load, setLoad] = useState<LoadState>({ status: "loading" });
 
   useEffect(() => {
     let cancelled = false;
-    loadIdleSettings()
+    loadNotificationSettings()
       .then((settings) => !cancelled && setLoad({ status: "ready", settings }))
       .catch((e) => {
         console.error("設定の読み込みに失敗しました", e);
@@ -49,32 +49,32 @@ function IdleSettingsForm({ userId }: { userId: string }) {
   if (load.status === "error") {
     return (
       <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-        設定を読み込めませんでした。DB に設定用のテーブルが追加されているか確認してください（docs/setup.md の 8）。
+        設定を読み込めませんでした。DB に設定用のテーブルが追加されているか確認してください（docs/setup.md の 8・9）。
       </p>
     );
   }
   return <Form userId={userId} initial={load.settings} />;
 }
 
-function Form({ userId, initial }: { userId: string; initial: IdleSettings }) {
+function Form({ userId, initial }: { userId: string; initial: NotificationSettings }) {
   const [settings, setSettings] = useState(initial);
   const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
-  const set = (patch: Partial<IdleSettings>) => {
+  const set = (patch: Partial<NotificationSettings>) => {
     setSettings((s) => ({ ...s, ...patch }));
     setMessage(null);
   };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    const r = validateIdleSettings(settings);
+    const r = validateNotificationSettings(settings);
     if (!r.ok) {
       setMessage({ kind: "error", text: r.error });
       return;
     }
     setSaving(true);
     try {
-      await saveIdleSettings(userId, r.value);
+      await saveNotificationSettings(userId, r.value);
       setMessage({ kind: "ok", text: "保存しました" });
     } catch (err) {
       console.error("設定の保存に失敗しました", err);
@@ -102,6 +102,7 @@ function Form({ userId, initial }: { userId: string; initial: IdleSettings }) {
           <input
             type="checkbox"
             role="switch"
+            aria-label="何も作業していない時間に通知する"
             checked={settings.enabled}
             onChange={(e) => set({ enabled: e.target.checked })}
             className="size-6 accent-blue-600"
@@ -112,11 +113,12 @@ function Form({ userId, initial }: { userId: string; initial: IdleSettings }) {
           <label className="flex flex-col gap-1 text-sm">
             間隔
             <select
+              aria-label="空き時間の通知の間隔"
               value={settings.intervalMin}
               onChange={(e) => set({ intervalMin: Number(e.target.value) })}
               className={inputClass}
             >
-              {IDLE_INTERVAL_OPTIONS.map((m) => (
+              {INTERVAL_OPTIONS.map((m) => (
                 <option key={m} value={m}>
                   {m}分ごと
                 </option>
@@ -157,12 +159,55 @@ function Form({ userId, initial }: { userId: string; initial: IdleSettings }) {
           </div>
         </fieldset>
 
-        {!isPushConfigured && (
-          <p className="text-xs text-amber-700 dark:text-amber-400">
-            この通知はサーバーから送るため、アプリを閉じていても届く通知（Web Push）の設定が必要です。
-          </p>
-        )}
       </section>
+
+      <section aria-labelledby="overrun-heading" className="flex flex-col gap-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+        <div>
+          <h2 id="overrun-heading" className="font-bold">
+            予定時間を過ぎた作業の通知
+          </h2>
+          <p className="mt-1 text-sm text-zinc-500">
+            予定時間を過ぎても作業が続いていると、終了するまで一定の間隔で「終了し忘れていませんか？」と通知します。
+            止め忘れに気づけるよう、時間帯に関係なく通知します。カードの「あと15分」で予定を延ばすと、延ばした時刻まで止まります。
+          </p>
+        </div>
+
+        <label className="flex items-center justify-between gap-3">
+          <span>通知する</span>
+          <input
+            type="checkbox"
+            role="switch"
+            aria-label="予定時間を過ぎた作業を通知する"
+            checked={settings.overrunEnabled}
+            onChange={(e) => set({ overrunEnabled: e.target.checked })}
+            className="size-6 accent-blue-600"
+          />
+        </label>
+
+        <fieldset disabled={!settings.overrunEnabled} className="disabled:opacity-50">
+          <label className="flex flex-col gap-1 text-sm">
+            間隔
+            <select
+              aria-label="超過中の通知の間隔"
+              value={settings.overrunIntervalMin}
+              onChange={(e) => set({ overrunIntervalMin: Number(e.target.value) })}
+              className={inputClass}
+            >
+              {INTERVAL_OPTIONS.map((m) => (
+                <option key={m} value={m}>
+                  {m}分ごと
+                </option>
+              ))}
+            </select>
+          </label>
+        </fieldset>
+      </section>
+
+      {!isPushConfigured && (
+        <p className="text-xs text-amber-700 dark:text-amber-400">
+          これらの通知はサーバーから送るため、アプリを閉じていても届く通知（Web Push）の設定が必要です。
+        </p>
+      )}
 
       {message && (
         <p
@@ -183,7 +228,7 @@ function Form({ userId, initial }: { userId: string; initial: IdleSettings }) {
         </button>
         <button
           type="button"
-          onClick={() => set(DEFAULT_IDLE_SETTINGS)}
+          onClick={() => set(DEFAULT_NOTIFICATION_SETTINGS)}
           className="rounded-xl px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400"
         >
           初期値に戻す

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PushPayload } from "@/lib/domain/push";
-import { type DuePushRow, type IdlePushRow, type PushTarget, dispatchPush, safeEqual } from "./push-dispatch";
+import { type DuePushRow, type IdlePushRow, type OverrunPushRow, type PushTarget, dispatchPush, safeEqual } from "./push-dispatch";
 
 const dueRow = (endpoint: string): DuePushRow => ({
   activity_id: "a1",
@@ -24,24 +24,36 @@ const idleRow = (endpoint: string): IdlePushRow => ({
   auth: "auth",
   time_zone: "Asia/Tokyo",
 });
+const overrunRow = (endpoint: string): OverrunPushRow => ({ ...dueRow(endpoint), slot_at: "2026-11-02T00:50:00+00:00" });
 const httpError = (statusCode: number) => Object.assign(new Error(`HTTP ${statusCode}`), { statusCode });
 const NOW = () => new Date("2026-11-02T01:20:10Z");
 
 describe("dispatchPush", () => {
-  it("予定時間と空き時間の通知をまとめて送る", async () => {
+  it("予定時間・超過中・空き時間の通知をまとめて送る", async () => {
     const send = vi.fn<(target: PushTarget, payload: PushPayload) => Promise<void>>(async () => {});
     const result = await dispatchPush({
       claimDue: async () => [dueRow("phone")],
+      claimOverrun: async () => [overrunRow("phone")],
       claimIdle: async () => [idleRow("phone")],
       send,
       removeSubscription: vi.fn(),
       now: NOW,
     });
-    expect(result).toEqual({ sent: 2, failed: 0, removed: 0 });
-    expect(send.mock.calls.map(([, p]) => p.tag)).toEqual(["wdyd-due-a1", "wdyd-idle"]);
+    expect(result).toEqual({ sent: 3, failed: 0, removed: 0 });
+    expect(send.mock.calls.map(([, p]) => p.title)).toEqual([
+      "「洗濯」の予定時間です",
+      "「洗濯」終了し忘れていませんか？",
+      "今、何をしていますか？",
+    ]);
     expect(send).toHaveBeenCalledWith(
       { endpoint: "phone", keys: { p256dh: "key", auth: "auth" } },
-      { title: "今、何をしていますか？", body: "「洗濯」が終わってから45分、何も記録していません", tag: "wdyd-idle", url: "/" },
+      {
+        title: "今、何をしていますか？",
+        body: "「洗濯」が終わってから45分、何も記録していません",
+        tag: "wdyd-idle",
+        url: "/",
+        renotify: true,
+      },
     );
   });
 
@@ -54,6 +66,7 @@ describe("dispatchPush", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const result = await dispatchPush({
       claimDue: async () => [dueRow("ok"), dueRow("gone"), dueRow("broken")],
+      claimOverrun: async () => [],
       claimIdle: async () => [idleRow("gone")],
       send,
       removeSubscription,
@@ -69,6 +82,7 @@ describe("dispatchPush", () => {
     const send = vi.fn();
     const result = await dispatchPush({
       claimDue: async () => [],
+      claimOverrun: async () => [],
       claimIdle: async () => [],
       send,
       removeSubscription: vi.fn(),

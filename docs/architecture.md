@@ -131,6 +131,15 @@ Supabase pg_cron（1分ごと）
 - **なぜ Vercel Cron を使わないか**：Hobby プランでは1日1回しか実行できないため。Supabase の pg_cron は1分ごとに実行できる
 - 定期実行の設定は `supabase/setup/push-cron.sql`（URL と合言葉を含むので、マイグレーションには入れない）
 
+### 予定時間を過ぎた作業の定期通知（F2）
+- 設定は `user_settings` の `overrun_reminder_enabled` / `overrun_interval_min`（既定：オン・15分）
+- 同じ定期実行の中で `claim_overrun_push_notifications()` も呼ぶ
+  - 対象：予定時間のある実行中の作業で、予定時刻から間隔以上たったもの（予定時刻ちょうどの通知は `claim_due_push_notifications()` が送る）
+  - 区切り `slot` = 予定時刻 + 間隔 × k（k ≥ 1）。`push_deliveries` に `('overrun:<作業ID>', slot)` を記録して二重送信を防ぐ
+  - 時間帯の制限はかけない。予定を延ばすと予定時刻が変わるので、新しい予定時刻までは送らない
+- 通知の `tag` は予定時刻の通知と同じ `wdyd-due-<作業ID>`。`renotify: true` を付けて、置き換えるときも知らせ直す（空き時間の通知も同様）
+- 延長（`extendActivity`）は「今から○分後」を新しい予定時刻にする。予定時刻で終了（`stopActivityAtPlanned`）は開始 + 予定時間を終了時刻にする
+
 ### 何も作業していない時間の通知（F8）
 - 設定は `user_settings`（1ユーザー1行、RLS で本人のみ）。行がなければ既定値（オン・15分・8〜23時）で扱う。設定画面は `/settings`
 - 同じ定期実行（毎分の `/api/push/dispatch`）の中で `claim_idle_push_notifications()` も呼ぶ

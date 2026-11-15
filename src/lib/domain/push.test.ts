@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDuePushPayload, buildIdlePushPayload, formatClockInZone } from "./push";
+import { buildDuePushPayload, buildIdlePushPayload, buildOverrunPushPayload, formatClockInZone } from "./push";
 
 const notice = {
   activityId: "a1",
@@ -45,6 +45,7 @@ describe("buildIdlePushPayload", () => {
       body: "「洗濯」が終わってから45分、何も記録していません",
       tag: "wdyd-idle",
       url: "/",
+      renotify: true,
     });
   });
   it("前日の作業しかない・作業がないときは、今日まだ記録がないと伝える", () => {
@@ -56,5 +57,24 @@ describe("buildIdlePushPayload", () => {
     expect(buildIdlePushPayload({ lastTitle: null, lastEndedAt: null, baseAt: base }, now).body).toBe(
       "今日はまだ何も記録していません（1時間15分経過）",
     );
+  });
+});
+
+describe("buildOverrunPushPayload", () => {
+  it("終了し忘れを問いかけ、超過時間と開始時刻を伝える。予定時刻の通知と同じ tag で知らせ直す", () => {
+    const meal = {
+      activityId: "m1",
+      title: "食事",
+      startedAt: new Date("2026-11-15T03:00:00Z"), // 日本時間 12:00
+      plannedMin: 30,
+      dueAt: new Date("2026-11-15T03:30:00Z"),
+    };
+    expect(buildOverrunPushPayload(meal, new Date("2026-11-15T04:45:30Z"), "Asia/Tokyo")).toEqual({
+      title: "「食事」終了し忘れていませんか？",
+      body: "予定の30分を1時間15分超過しています（12:00開始）",
+      tag: "wdyd-due-m1",
+      url: "/",
+      renotify: true,
+    });
   });
 });

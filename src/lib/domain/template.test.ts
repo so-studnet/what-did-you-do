@@ -10,7 +10,7 @@ import {
   updateTemplate,
 } from "./template";
 
-const tpl = (id: string): Template => ({ id, title: id, plannedMin: null, tagIds: [] });
+const tpl = (id: string): Template => ({ id, title: id, plannedMin: 30, tagIds: [] });
 const list = [tpl("a"), tpl("b"), tpl("c")];
 
 describe("template", () => {
@@ -43,10 +43,13 @@ describe("template", () => {
       activityToTemplateInput({ id: "a", title: "x", startedAt: "", endedAt: null, plannedMin: null, tagIds: ["k"] }),
     ).toEqual({ title: "x", plannedMin: null, tagIds: ["k"] });
   });
-  it("parseTemplates は壊れた要素を捨てる", () => {
+  it("parseTemplates は壊れた要素を捨て、予定なしのテンプレートは15分にする", () => {
     expect(parseTemplates([tpl("a"), { id: "b" }, null, { id: "c", title: "c", plannedMin: null }])).toEqual([
       tpl("a"),
-      tpl("c"),
+      { id: "c", title: "c", plannedMin: 15, tagIds: [] },
     ]);
+  });
+  it("予定時間のないテンプレートは作れない", () => {
+    expect(() => createTemplate([], { title: "x", plannedMin: null, tagIds: [] }, "t")).toThrow("予定時間を選んでください");
   });
 });
